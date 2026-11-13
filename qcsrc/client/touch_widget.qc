@@ -1,0 +1,330 @@
+#include "touch_widget.qh"
+#include "touch_glass.qh"
+
+// Three layers per control — drop shadow, translucent surface, rim stroke.
+// The shadow is what separates a control from arbitrary game content: a flat
+// translucent disc disappears over bright terrain, a shadowed one does not.
+
+// Fit the label to the control's box: bounded by half-height so it never
+// crowds the rim vertically, and by width so a long label in a small disc
+// shrinks instead of spilling over the edge.
+float Touch_Widget_LabelSize(vector half, string label)
+{
+	float fs = bound(TOUCH_FONT_MIN, half.y * TOUCH_FONT_FIT_H, TOUCH_FONT_MAX);
+	// Measured rather than counted, because "MENU" and "1111" have the same
+	// length and not the same width, and it was the widest label in a set that
+	// used to overflow. Measured at the size it will be drawn at: stock
+	// r_font_size_snapping 4 swaps a tiny request for the nearest loaded font,
+	// so a unit-size measurement came back several times too wide and every
+	// label shrank to the minimum.
+	float w = Touch_Shape_LabelWidth(fs, label);
+	float room = half.x * 2 * TOUCH_FONT_FIT_W;
+	if (w > room)
+		fs *= room / w;
+	return bound(TOUCH_FONT_MIN, fs, TOUCH_FONT_MAX);
+}
+
+// A disc has more room across its middle than the box Touch_Widget_LabelSize
+// assumes: the chord through the label's top and bottom edges. On a small disc
+// (DUCK on a 667x375 phone) the box fit hit the TOUCH_FONT_MIN floor and the
+// label ran past the rim, so the disc measures against its chord, again at the
+// size it will be drawn (font snapping is not proportional), and may go under
+// the floor as far as TOUCH_FONT_MIN_DISC rather than overflow.
+float Touch_Widget_DiscLabelSize(float radius, string label)
+{
+	float fs = Touch_Widget_LabelSize('1 1 0' * radius, label);
+	for (int i = 0; i < 4; ++i)
+	{
+		float half_h = fs * 0.5;
+		float room = 2 * sqrt(max(0, radius * radius - half_h * half_h)) * TOUCH_FONT_FIT_DISC;
+		float w = Touch_Shape_LabelWidth(fs, label);
+		if (w <= room || fs <= TOUCH_FONT_MIN_DISC)
+			break;
+		fs = max(TOUCH_FONT_MIN_DISC, fs * room / w);
+	}
+	return fs;
+}
+
+float Touch_Widget_FontSize(float radius)
+{
+	return Touch_Widget_LabelSize('1 1 0' * radius, "AAAA");
+}
+
+// touch_glass_hollow: 0 is tinted glass, 1 is hollow -- outline and label
+// only, nothing between the player and the game. It scales the surface fill
+// and the drop shadow; rims, labels and the press glow stay, so a hollow
+// control still reads as a control. A press keeps some fill at any setting:
+// under the thumb, fill and rim are the only feedback.
+float Touch_GlassBody(bool pressed)
+{
+	float body = 1 - bound(0, autocvar_touch_glass_hollow, 1);
+	return pressed ? max(body, 0.45) : body;
+}
+
+float Touch_Widget_Elevation(float radius)
+{
+	return max(1, radius * TOUCH_ELEVATION_Y);
+}
+
+// A dark stroke outside a bright one. Either alone fails on half the maps this
+// game ships — a white rim disappears against a white skybox and a dark rim
+// disappears in a black corridor — so every edge draws both.
+//
+// One border width for every control, in UI units: a big FIRE and a small
+// DUCK, a pill and a key all carry the same outline. It used to be a fraction
+// of each control's radius, so the border thickened with the control. The
+// light line sits centred in a dark band twice its width, so the dark shows
+// evenly on both sides of it.
+float Touch_Widget_Border(void)
+{
+	return TOUCH_W_STROKE * Touch_UIScale();
+}
+
+void Touch_Widget_Rim(vector center, float radius, vector rgb, float alpha)
+{
+	float b = Touch_Widget_Border();
+	Touch_Shape_RingStroke(center, radius, b * 2, TOUCH_C_SHADOW, alpha * TOUCH_A_CONTOUR);
+	Touch_Shape_RingStroke(center, radius - b * 0.5, b, rgb, alpha);
+}
+
+void Touch_Widget_CapsuleRim(vector center, vector half, vector rgb, float alpha)
+{
+	float b = Touch_Widget_Border();
+	Touch_Shape_CapsuleRingStroke(center, half, b * 2, TOUCH_C_SHADOW, alpha * TOUCH_A_CONTOUR);
+	Touch_Shape_CapsuleRingStroke(center, half - '1 1 0' * (b * 0.5), b, rgb, alpha);
+}
+
+// Pressed is the only state a thumb can actually see, since the thumb covers
+// the control: brighten the rim and push a glow *past* the edge so feedback
+// lands outside the contact patch.
+void Touch_Widget_Button(vector center, float radius, string label, bool pressed,
+	float alpha, vector accent)
+{
+	if (radius < 2 || alpha <= 0)
+		return;
+
+	vector surface = pressed ? accent : TOUCH_C_SURFACE;
+	vector rim = pressed ? accent : TOUCH_C_RIM;
+	float a_surface = pressed ? TOUCH_A_SURFACE_ACTIVE : TOUCH_A_SURFACE;
+	float a_rim = pressed ? TOUCH_A_RIM_ACTIVE : TOUCH_A_RIM;
+	float fs = Touch_Widget_DiscLabelSize(radius, label);
+
+	if (!Touch_Shape_Ready())
+	{
+		Touch_Glass_DrawRoundedButton(center, radius * 2, surface, alpha, pressed);
+		Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		return;
+	}
+
+	Touch_Shape_Shadow(center + eY * Touch_Widget_Elevation(radius), radius * 1.12,
+		alpha * TOUCH_A_SHADOW * Touch_GlassBody(false));
+	Touch_Shape_Disc(center, radius, surface, alpha * a_surface * Touch_GlassBody(pressed));
+	if (pressed)
+		Touch_Shape_Glow(center, radius * 1.35, accent, alpha * TOUCH_A_GLOW);
+	Touch_Widget_Rim(center, radius, rim, alpha * a_rim);
+	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+}
+
+// `latched` is a sticky "still on after release" state (bunny-hop). It reads as
+// tinted-but-not-pressed plus a pip, so it is distinguishable from both rest
+// and an active press.
+void Touch_Widget_Capsule(vector center, vector half, string label, bool pressed,
+	bool latched, float alpha, vector accent)
+{
+	if (half.x < 2 || half.y < 2 || alpha <= 0)
+		return;
+
+	bool tinted = pressed || latched;
+	vector surface = tinted ? accent : TOUCH_C_SURFACE;
+	vector rim = tinted ? accent : TOUCH_C_RIM;
+	float a_surface = TOUCH_A_SURFACE;
+	if (pressed)
+		a_surface = TOUCH_A_SURFACE_ACTIVE;
+	else if (latched)
+		a_surface = TOUCH_A_SURFACE_LATCH;
+	float a_rim = tinted ? TOUCH_A_RIM_ACTIVE : TOUCH_A_RIM;
+	// Sized from the whole box, not the space left by the pip: a label that
+	// changed size when the control latched would read as a glitch. The pip sits
+	// a full cap-radius clear of a centred label at these proportions.
+	float fs = Touch_Widget_LabelSize(half, label);
+
+	if (!Touch_Shape_Ready())
+	{
+		Touch_Glass_DrawBar(center, half.x * 2, half.y * 2, surface, alpha, pressed);
+		Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		return;
+	}
+
+	Touch_Shape_CapsuleShadow(center + eY * Touch_Widget_Elevation(half.y),
+		half + '1 1 0' * (half.y * 0.10), alpha * TOUCH_A_SHADOW * Touch_GlassBody(false));
+	Touch_Shape_Capsule(center, half, surface, alpha * a_surface * Touch_GlassBody(tinted));
+	if (pressed)
+		Touch_Shape_Capsule(center, half + '1 1 0' * (half.y * 0.18), accent, alpha * TOUCH_A_GLOW);
+	Touch_Widget_CapsuleRim(center, half, rim, alpha * a_rim);
+	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+
+	if (latched)
+	{
+		// Toggle-style "on" pip, centred in the right cap (whose centre is
+		// exactly half.y in from the end) so the thumb resting on the bar's
+		// middle never hides it. Ink, not accent: on an accent-filled surface an
+		// accent pip is invisible.
+		vector pip = center + eX * (half.x - half.y);
+		float pip_r = max(2, half.y * 0.26);
+		Touch_Shape_Disc(pip, pip_r, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		Touch_Shape_Ring(pip, pip_r * 1.5, TOUCH_W_RING_THIN, TOUCH_C_INK,
+			alpha * TOUCH_A_RIM);
+	}
+}
+
+void Touch_Widget_Check(vector center, vector half, string label, bool on, bool pressed,
+	float alpha, vector accent)
+{
+	if (half.x < 2 || half.y < 2 || alpha <= 0)
+		return;
+	float fs = Touch_Widget_LabelSize(half, label);
+	float r = TOUCH_R_SM * Touch_UIScale();
+	float b = Touch_Widget_Border();
+
+	if (!Touch_Shape_Ready())
+	{
+		if (on || pressed)
+		{
+			drawfill_builtin(center - half, half * 2, accent, alpha * TOUCH_A_SURFACE_ACTIVE,
+				DRAWFLAG_NORMAL);
+			Touch_DebugAddFills(1);
+		}
+		Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		return;
+	}
+
+	// Off: no fill at all, only the box's edge, like an empty checkbox.
+	if (on || pressed)
+		Touch_Shape_RRect(center, half, r, accent, alpha * TOUCH_A_SURFACE_ACTIVE);
+	if (pressed)
+		Touch_Shape_RRect(center, half + '1 1 0' * (half.y * 0.18), r, accent, alpha * TOUCH_A_GLOW);
+	Touch_Shape_RRectRing(center, half, r, b * 2, TOUCH_C_SHADOW, alpha * TOUCH_A_CONTOUR);
+	Touch_Shape_RRectRing(center, half - '1 1 0' * (b * 0.5), r, b, (on ? accent : TOUCH_C_RIM),
+		alpha * (on ? TOUCH_A_RIM_ACTIVE : TOUCH_A_RIM));
+	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+}
+
+void Touch_Widget_Key(vector center, vector half, string label, bool pressed,
+	bool on, bool emphasis, float alpha, vector accent)
+{
+	if (half.x < 2 || half.y < 2 || alpha <= 0)
+		return;
+
+	bool tinted = pressed || on || emphasis;
+	vector surface = tinted ? accent : TOUCH_C_SURFACE;
+	float a_surface = TOUCH_A_SURFACE;
+	if (pressed)
+		a_surface = TOUCH_A_SURFACE_ACTIVE;
+	else if (on || emphasis)
+		a_surface = TOUCH_A_SURFACE_LATCH;
+	float fs = Touch_Widget_LabelSize(half, label);
+	float r = TOUCH_R_SM * Touch_UIScale();
+
+	if (!Touch_Shape_Ready())
+	{
+		drawfill_builtin(center - half, half * 2, surface, alpha * a_surface,
+			DRAWFLAG_NORMAL);
+		Touch_DebugAddFills(1);
+		Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		return;
+	}
+
+	Touch_Shape_RRect(center, half, r, surface, alpha * a_surface);
+	// A pressed key is under a fingertip, so the only feedback that survives is
+	// outside the contact patch: the rim, not the fill.
+	Touch_Shape_RRectRing(center, half, r, TOUCH_W_STROKE * Touch_UIScale(),
+		(tinted ? accent : TOUCH_C_RIM),
+		alpha * (pressed ? TOUCH_A_RIM_ACTIVE : TOUCH_A_RIM * 0.5));
+	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
+}
+
+void Touch_Widget_Field(vector center, vector half, string text, string placeholder,
+	float alpha, vector accent)
+{
+	if (half.x < 2 || half.y < 2)
+		return;
+
+	float r = TOUCH_R_SM * Touch_UIScale();
+	bool empty = (text == "");
+	float fs = min(TOUCH_FONT_READOUT * Touch_UIScale(), half.y * TOUCH_FONT_FIT_H);
+	float pad = TOUCH_SPACE_2 * Touch_UIScale();
+
+	if (Touch_Shape_Ready())
+	{
+		Touch_Shape_RRect(center, half, r, TOUCH_C_SURFACE, alpha * TOUCH_A_SURFACE_ACTIVE);
+		// An accent *outline* marks the field as the focused element. Filling it
+		// with the accent instead made the composer a solid blue slab — the one
+		// element in the overlay that was neither glass nor text.
+		Touch_Shape_RRectRing(center, half, r, TOUCH_W_STROKE * Touch_UIScale(),
+			accent, alpha * TOUCH_A_RIM);
+	}
+	else
+	{
+		drawfill_builtin(center - half, half * 2, TOUCH_C_SURFACE,
+			alpha * TOUCH_A_SURFACE_ACTIVE, DRAWFLAG_NORMAL);
+		Touch_DebugAddFills(1);
+	}
+
+	string shown = empty ? placeholder : text;
+	float left = center.x - half.x + pad;
+	// Long messages scroll rather than wrap: the caret must stay visible, and a
+	// field that grew taller would shove the keyboard off screen.
+	float room = half.x * 2 - pad * 2;
+	while (shown != "" && Touch_Shape_LabelWidth(fs, shown) > room)
+		shown = substring(shown, 1, strlen(shown) - 1);
+
+	Touch_Shape_LabelAligned(eX * left + eY * center.y, fs, shown, -1,
+		(empty ? TOUCH_C_RIM : TOUCH_C_INK), alpha * (empty ? TOUCH_A_GHOST * 3 : TOUCH_A_INK));
+
+	// Blinking caret at a 1 Hz duty cycle: present enough to mark the insertion
+	// point, quiet enough not to pull the eye off the keyboard.
+	if (Touch_Shape_Ready() && (time - floor(time)) < 0.6)
+	{
+		float caret_x = left + Touch_Shape_LabelWidth(fs, shown) + max(1, fs * 0.08);
+		Touch_Shape_RRect(eX * caret_x + eY * center.y,
+			eX * max(1, fs * 0.06) + eY * (fs * 0.55), 1, accent, alpha * TOUCH_A_INK);
+	}
+}
+
+// Flatter than the gameplay controls — no elevation shadow — because chrome
+// should recede. It recedes by being flat and small, not by being faint: these
+// are the controls a player has to *find*, and they sit wherever the map happens
+// to be bright, so the plate under the label stays solid.
+void Touch_Widget_ChromePill(vector center, vector half, string label, bool pressed,
+	float alpha, vector accent)
+{
+	if (half.x < 2 || half.y < 2)
+		return;
+
+	// Chrome keeps a floor on opacity: at touch_opacity 0.3 the action controls
+	// may fade into the scene, but a control you have to *find* must stay legible.
+	float a = pressed ? max(0.85, alpha) : max(TOUCH_A_CHROME_REST, alpha * 0.8);
+	vector surface = pressed ? accent : TOUCH_C_SURFACE;
+	vector rim = pressed ? accent : TOUCH_C_RIM;
+	// All chrome pills take one type size, not each its own fit: they are one level
+	// of the hierarchy, and fitting each label separately made CONSOLE and SCORE —
+	// adjacent, same size, same shape — differ by 8% in cap height. The size is the
+	// one the *longest* label in the family needs, so nothing overflows, and `min`
+	// keeps that true if a longer label is ever added.
+	float fs = min(Touch_Widget_LabelSize(half, label),
+		Touch_Widget_LabelSize(half, TOUCH_CHROME_LABEL_REF));
+
+	if (!Touch_Shape_Ready())
+	{
+		Touch_Glass_DrawBar(center, half.x * 2, half.y * 2, surface, a, pressed);
+		Touch_Shape_Label(center, fs, label, TOUCH_C_INK, a * TOUCH_A_INK);
+		return;
+	}
+
+	Touch_Shape_Capsule(center, half, surface, a * TOUCH_A_CHROME_FILL * Touch_GlassBody(pressed));
+	// The dual-stroke rim, same as every other control: the single light stroke it
+	// used to draw vanished against a bright background, taking the pill's outline
+	// with it, so the label floated on nothing.
+	Touch_Widget_CapsuleRim(center, half, rim, a * TOUCH_A_RIM);
+	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, a * TOUCH_A_INK);
+}

@@ -1,0 +1,17 @@
+#pragma once
+// Public entry points for Xonotic client integration (wired in main.qc / view.qc)
+
+void Touch_Init(void);
+void Touch_Frame(void);
+void Touch_Draw(void);
+bool Touch_InputEvent(float bInputType, float nPrimary, float nSecondary);
+// Called from CSQC_Parse_Print so the chat sheet can keep a backlog that
+// outlives the engine feed's con_chattime expiry.
+void Touch_Chat_Capture(string msg);
+// Called from _getcommandkey so prompts naming a key ("press SPACE to respawn")
+// name the on-screen control instead in a touch session. Returns "" when the
+// touch layer has nothing on screen for that command.
+string Touch_CommandLabel(string command);
+// True while a touch sheet is modal and owns the screen (edit mode, chat). Stock
+// panels that keep drawing underneath print straight through it.
+bool Touch_OwnsScreen(void);

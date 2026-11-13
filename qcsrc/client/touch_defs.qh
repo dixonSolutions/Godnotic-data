@@ -1,0 +1,138 @@
+#pragma once
+
+// Xonotic Touch — touch control layer (see docs/TOUCH_LAYOUT_SPEC.md)
+
+const int TOUCH_MAX_FINGERS = 4;
+const int TOUCH_ENGINE_SLOTS = 10;
+const int TOUCH_SRC_POINTER = 10;
+
+// The key number touch holds its buttons with (+forward 50001, -forward 50001).
+// A bare -forward clears every holder, so letting go of the stick used to drop
+// a W still held on the keyboard as well. Real keys stop below 0xAC00
+// (MAX_KEY_BINDS); the engine's own HUD uses 50000 (touch_hud.c).
+#define TOUCH_HOLD_KEY "50001"
+
+const int TOUCH_ROLE_NONE = -1;
+const int TOUCH_ROLE_IGNORED = -2;
+const int TOUCH_ROLE_MOVE = 0;
+const int TOUCH_ROLE_LOOK = 1;
+const int TOUCH_ROLE_FIRE = 2;
+// Secondary fire sits under the other hand, so it must not also drive look.
+const int TOUCH_ROLE_FIRE2 = 3;
+const int TOUCH_ROLE_JUMP = 100;
+const int TOUCH_ROLE_CROUCH = 101;
+const int TOUCH_ROLE_WEAPON = 102;
+const int TOUCH_ROLE_ZOOM = 103;
+const int TOUCH_ROLE_DODGE = 104;
+const int TOUCH_ROLE_RELOAD = 105;
+const int TOUCH_ROLE_CON = 106;
+const int TOUCH_ROLE_PAUSE = 107;
+const int TOUCH_ROLE_SHEET = 108;
+const int TOUCH_ROLE_CHAT = 109;
+const int TOUCH_ROLE_SCORES = 110;
+// The weapons strip's resize grip (Touch_Hud_GripBegin).
+const int TOUCH_ROLE_WEPSIZE = 111;
+// The grappling hook, held (Touch_SetHook).
+const int TOUCH_ROLE_HOOK = 113;
+// The quick turn (touch_turn, on the press).
+const int TOUCH_ROLE_TURN = 114;
+// The keep-jumping chip beside HOP (touch_hop_mode 3): a tap, on release.
+const int TOUCH_ROLE_HOPLOCK = 115;
+// The NADE row under the weapons: held, the offhand grenade cooks (+touch_nade).
+const int TOUCH_ROLE_NADE = 116;
+
+// One name per control. Three places have to agree on it: the drawn label, the
+// handle in edit mode, and the prompts the stock panels build out of key binds
+// ("press HOP to respawn"). Held as literals in each, a rename would have to be
+// found in all three, and the one that got missed would be the one telling the
+// player to press a button that no longer exists.
+const string TOUCH_LABEL_FIRE = "FIRE";
+const string TOUCH_LABEL_FIRE2 = "ALT";
+const string TOUCH_LABEL_JUMP = "HOP";
+const string TOUCH_LABEL_CROUCH = "DUCK";
+const string TOUCH_LABEL_WEAPON = "WEP";
+const string TOUCH_LABEL_RELOAD = "RLD";
+const string TOUCH_LABEL_DODGE = "DASH";
+const string TOUCH_LABEL_HOOK = "HOOK";
+const string TOUCH_LABEL_TURN = "TURN";
+// Under the keep-jumping chip's box: the box says on / off, the word says what.
+const string TOUCH_LABEL_HOPLOCK = "KEEP";
+
+const int TOUCH_PAUSE_IDLE = 0;
+const int TOUCH_PAUSE_ARMING = 1;
+
+const int TOUCH_PAUSE_BTN_NONE = -1;
+const int TOUCH_PAUSE_BTN_RESUME = 0;
+const int TOUCH_PAUSE_BTN_MENU = 1;
+const int TOUCH_PAUSE_BTN_LEAVE = 2;
+const int TOUCH_PAUSE_BTN_QUIT = 3;
+
+// Legacy aliases used by older call sites
+const int TOUCH_SLOT_NONE = TOUCH_ROLE_NONE;
+const int TOUCH_SLOT_MOVE = TOUCH_ROLE_MOVE;
+const int TOUCH_SLOT_LOOK = TOUCH_ROLE_LOOK;
+const int TOUCH_SLOT_FIRE = TOUCH_ROLE_FIRE;
+
+const int TOUCH_WEAPON_WHEEL = 0;
+const int TOUCH_WEAPON_3SLOT = 1;
+const int TOUCH_WEAPON_CYCLE = 2;
+
+const int TOUCH_FIRE_HOLD = 0;
+const int TOUCH_FIRE_TOGGLE = 1;
+
+// Bunny-hopping in Xonotic means holding jump, not tapping it, so a held state
+// needs a toggle, not a dedicated finger. The default puts that toggle on its
+// own chip beside HOP: latching HOP by holding it caught players who only
+// meant to jump. See docs/TOUCH_UX_REDESIGN.md §6.1.
+const int TOUCH_HOP_HOLD  = 0;
+const int TOUCH_HOP_LATCH = 1;
+const int TOUCH_HOP_AUTO  = 2;
+const int TOUCH_HOP_CHIP  = 3;
+
+// Look filtering. The fixed exponential smoother costs latency at every speed;
+// the 1 euro filter adapts its cutoff to thumb speed instead.
+const int TOUCH_LOOK_FILTER_OFF   = 0;
+const int TOUCH_LOOK_FILTER_1EURO = 1;
+const int TOUCH_LOOK_FILTER_EMA   = 2;
+
+const int TOUCH_ZOOM_HOLD = 0;
+const int TOUCH_ZOOM_TOGGLE = 1;
+
+const int TOUCH_DODGE_BUTTON = 0;
+const int TOUCH_DODGE_DOUBLETAP = 1;
+
+const int TOUCH_CON_IDLE = 0;
+const int TOUCH_CON_ARMING = 1;
+const int TOUCH_CON_DRAGGING = 2;
+
+// Customize-mode widget ids
+const int TOUCH_WIDGET_NONE = -1;
+const int TOUCH_WIDGET_MOVE = 0;
+const int TOUCH_WIDGET_FIRE = 1;
+const int TOUCH_WIDGET_JUMP = 2;
+const int TOUCH_WIDGET_CROUCH = 3;
+const int TOUCH_WIDGET_WEAPON = 4;
+const int TOUCH_WIDGET_ZOOM = 5;
+const int TOUCH_WIDGET_RELOAD = 6;
+const int TOUCH_WIDGET_DODGE = 7;
+const int TOUCH_WIDGET_FIRE2 = 8;
+const int TOUCH_WIDGET_HOOK = 9;
+const int TOUCH_WIDGET_TURN = 10;
+const int TOUCH_WIDGET_HOPLOCK = 11;
+const int TOUCH_WIDGET_COUNT = 12;
+
+// Customize-mode toolbar actions, in on-screen order left to right.
+const int TOUCH_CUSTOMIZE_SAVE = 0;
+const int TOUCH_CUSTOMIZE_CANCEL = 1;
+const int TOUCH_CUSTOMIZE_RESET = 2;
+const int TOUCH_CUSTOMIZE_ACTIONS = 3;
+
+const float TOUCH_LOOK_DEG_PER_PX = 0.18;
+const float TOUCH_LOOK_REF_WIDTH = 960;
+
+// Glass palette — slightly brighter so panels read on dark maps
+const vector TOUCH_GLASS_TINT = '0.78 0.86 0.96';
+const vector TOUCH_GLASS_HIGHLIGHT = '1 1 1';
+const vector TOUCH_GLASS_SHADOW = '0.02 0.04 0.08';
+const vector TOUCH_GLASS_ACCENT = '0.35 0.78 1.0';
+const vector TOUCH_GLASS_DANGER = '1.0 0.32 0.22';

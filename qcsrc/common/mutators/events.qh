@@ -1,0 +1,99 @@
+#pragma once
+
+/// Appends ":mutatorname" to argument for logging
+#define params(i, o) \
+	i(string, 0) /* mutator string */ \
+	o(string, 0) \
+	/**/
+MUTATOR_HOOKABLE(BuildMutatorsString, params);
+#undef params
+
+/// Appends ", Mutator name" to ret_string for display
+#define params(i, o) \
+	i(string, 0) /* mutator string */ \
+	o(string, 0) \
+	/**/
+MUTATOR_HOOKABLE(BuildMutatorsPrettyString, params);
+#undef params
+
+/// Appends mutator string for displaying extra gameplay tips
+#define params(i, o) \
+	i(string, 0) /* tips string */ \
+	o(string, 0) \
+	/**/
+MUTATOR_HOOKABLE(BuildGameplayTipsString, params);
+#undef params
+
+#define params(i, o) \
+	i(entity, 0) \
+	/**/
+MUTATOR_HOOKABLE(IsFlying, params);
+#undef params
+
+#define params(i, o) \
+	i(entity, 0) \
+	i(string, 1) \
+	o(vector, 2) \
+	o(string, 3) \
+	o(string, 4) \
+	/**/
+MUTATOR_HOOKABLE(WP_Format, params);
+#undef params
+
+/**
+ * Called before any player physics, may adjust variables for movement,
+ * is run AFTER bot code and idle checking on the server
+ */
+#define params(i, o) \
+	i(entity, 0) /* player */ \
+	i(float,  1) /* ticrate */ \
+	/**/
+MUTATOR_HOOKABLE(PlayerPhysics, params);
+#undef params
+
+/// Called when a player presses the jump key
+#define params(i, o) \
+	i(entity, 0) /* player */ \
+	i(float,  1) /* jump height */ \
+	o(float,  1) \
+	i(bool,   2) /* multijump */ \
+	o(bool,   2) \
+	/**/
+MUTATOR_HOOKABLE(PlayerJump, params);
+#undef params
+
+/// Called during player physics, allows adjusting the movement type used
+#define params(i, o) \
+	i(entity, 0) /* player */ \
+	i(float,  1) /* maxspeed_mod */ \
+	i(float,  2) /* tick rate */ \
+	/**/
+MUTATOR_HOOKABLE(PM_Physics, params);
+#undef params
+
+/// Called when a weapon sound is about to be played, allows custom paths etc.
+#define params(i, o) \
+	i(string, 0) /* sound */ \
+	i(string, 1) /* output */ \
+	o(string, 1) \
+	/**/
+MUTATOR_HOOKABLE(WeaponSound, params);
+#undef params
+
+/// Called when a weapon model is about to be set, allows custom paths etc.
+#define params(i, o) \
+	i(string, 0) /* model */ \
+	i(string, 1) /* output */ \
+	o(string, 1) \
+	/**/
+MUTATOR_HOOKABLE(WeaponModel, params);
+#undef params
+
+/// Decides whether a player can crouch or not
+#define params(i, o) \
+	i(entity, 0) /* player */ \
+	i(bool,   1) /* do_crouch */ \
+	o(bool,   1) \
+	/**/
+MUTATOR_HOOKABLE(PlayerCanCrouch, params);
+#undef params

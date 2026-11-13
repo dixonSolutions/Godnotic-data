@@ -1,0 +1,1398 @@
+#include "touch_input.qh"
+#include "touch_chat.qh"
+#include "touch_customize.qh"
+#include "touch_glass.qh"
+#include "touch_hud.qh"
+#include "touch_console.qh"
+#include "touch_pause.qh"
+#include "touch_look.qh"
+#include "touch_layout.qh"
+#include "touch_init.qh"
+#include "touch_defs.qh"
+#include "touch_weapons.qh"
+#include "touch_scores.qh"
+#include "touch_spectate.qh"
+#include "view.qh"
+#include <common/weapons/all.qh>
+#include <common/mapvoting/_mod.qh>
+#include <client/hud/panel/scoreboard.qh>
+
+bool touch_finger_used[TOUCH_MAX_FINGERS];
+int touch_finger_src[TOUCH_MAX_FINGERS];
+int touch_finger_role[TOUCH_MAX_FINGERS];
+vector touch_finger_down_pos[TOUCH_MAX_FINGERS];
+vector touch_finger_last_pos[TOUCH_MAX_FINGERS];
+vector touch_finger_prev_pos[TOUCH_MAX_FINGERS];
+vector touch_finger_accum[TOUCH_MAX_FINGERS];
+// Down and lost times are on the frame clock, not `time`: game time stops
+// while the game is paused, and on it a lifted finger was never let go, so
+// the move stick stayed pushed (and lit) until the pause ended.
+float touch_finger_down_time[TOUCH_MAX_FINGERS];
+float touch_finger_lost_time[TOUCH_MAX_FINGERS];
+bool touch_finger_first[TOUCH_MAX_FINGERS];
+bool touch_finger_live[TOUCH_MAX_FINGERS];
+// Set once a FIRE finger has slid far enough to also steer the view, so the
+// promotion is sticky for the rest of the gesture.
+bool touch_finger_draglook[TOUCH_MAX_FINGERS];
+
+vector touch_move_offset;
+bool touch_fire_down;
+bool touch_fire_edge;
+bool touch_fire_toggle_state;
+bool touch_zoom_edge;
+bool touch_zoom_toggle_state;
+bool touch_jump_edge;
+bool touch_hop_latched;
+float touch_hop_press_time;
+bool touch_hop_cancelling;
+int touch_last_hop_mode = -1;
+// A tap in the look zone fires one shot; hold attack briefly so a single frame's
+// press cannot be swallowed between +attack and -attack.
+float touch_tapfire_until;
+bool touch_weapon_wheel;
+bool touch_mouse_down;
+int touch_active_finger_count;
+bool touch_ready;
+int touch_last_fire_mode;
+bool touch_autoscreenshot_done;
+int touch_autoscreenshot_frames;
+// The controls are off but a finger is still being placed (Touch_DeskFrame):
+// Touch_AssignRole only hands out the roles that stay on screen then.
+bool touch_desk;
+bool touch_desk_on;
+int touch_desk_claim_sent = -1;
+
+bool touch_key_forward;
+bool touch_key_back;
+bool touch_key_left;
+bool touch_key_right;
+bool touch_key_attack;
+bool touch_key_attack2;
+bool touch_key_jump;
+bool touch_key_crouch;
+bool touch_key_zoom;
+// HOOK is held through the engine's +touch_hook (touch_hook.c), which knows
+// which hook the server offers and does the weapon switch for the Hook weapon.
+bool touch_key_hook;
+bool touch_key_nade;
+bool touch_owns_forward;
+bool touch_owns_back;
+bool touch_owns_left;
+bool touch_owns_right;
+bool touch_owns_attack;
+bool touch_owns_attack2;
+bool touch_owns_jump;
+bool touch_owns_crouch;
+bool touch_owns_zoom;
+
+// Last value written to _cl_touch_hud_state, so the cvar is set only on change.
+int touch_hud_state_sent = -2;
+
+int touch_debug_fills;
+int touch_debug_cmds;
+float touch_debug_cmd_window;
+int touch_debug_cmds_per_sec;
+
+// Tell the engine's aim assist (touch_aim.c) whether this HUD is live and
+// whether a finger is on the aim control (look zone or FIRE): the pull toward
+// an enemy only ever happens while one is. -1 = not live, 0 = live, 1 = aiming.
+void Touch_ReportHudState(int st)
+{
+	if (st == touch_hud_state_sent)
+		return;
+	touch_hud_state_sent = st;
+	if (cvar_type("_cl_touch_hud_state"))
+		cvar_set("_cl_touch_hud_state", ftos(st));
+}
+
+// Tell the engine's auto-shoot what is in hand (touch_aim.c, "instant-hit
+// weapons only"): 1 instant-hit, 2 anything else, 0 nothing known.
+void Touch_ReportWeaponClass(void)
+{
+	int cls = 0;
+	entity wepent = viewmodels[0];
+	if (wepent)
+	{
+		Weapon w = wepent.activeweapon;
+		if (w && w != WEP_Null)
+			cls = (w.spawnflags & WEP_TYPE_HITSCAN) ? 1 : 2;
+	}
+	if (cvar_type("_cl_touch_weapon_class") && cvar("_cl_touch_weapon_class") != cls)
+		cvar_set("_cl_touch_weapon_class", ftos(cls));
+}
+
+bool Touch_AutoShootEngaged(void)
+{
+	return cvar("_cl_touch_autoshoot_active") > 0;
+}
+
+bool Touch_MouseDown(void)
+{
+	return touch_mouse_down;
+}
+
+void Touch_SetMouseDown(bool down)
+{
+	touch_mouse_down = down;
+}
+
+bool Touch_Active(void)
+{
+	if (Touch_CustomizeActive() || Touch_Chat_Active())
+		return true;
+	if (!cvar("vid_touchscreen"))
+		return false;
+	// TOUCH_LAYOUT_SPEC R7: hard-release during vote / intermission / team UI so
+	// MapVote and scoreboard receive pointer events (Touch_InputEvent runs first).
+	// The same for every other stock UI that has asked for the cursor (quick
+	// menu, minigames, a clickable radar): the engine turns a finger into that
+	// pointer and its click, which this layer must neither draw over nor eat.
+	if (mv_active || intermission || scoreboard_ui_enabled || cursor_active)
+		return false;
+	// Normal: hide under full menu. Debug keeps overlay visible for remote verification.
+	if (autocvar_touch_debug)
+		return true;
+	return autocvar__menu_alpha < 1;
+}
+
+// Edit mode and the chat sheet are modal: they dim or cover the scene and nothing
+// underneath is reachable. Stock panels do not know that and keep drawing, so the
+// death scoreboard printed its whole table across the drag handles. Asked by the
+// panels that would otherwise compete.
+bool Touch_OwnsScreen(void)
+{
+	return Touch_CustomizeActive() || Touch_Chat_Active();
+}
+
+bool Touch_AnyFingerDown(void)
+{
+	if (!checkextension("DP_UT_TOUCHFINGER"))
+		return false;
+	for (int s = 0; s < TOUCH_ENGINE_SLOTS; ++s)
+		if (gettouchfinger(s).z > 0)
+			return true;
+	return false;
+}
+
+// A keyboard is attached to a touchscreen (vid_touchscreen 0 there: Dynamic
+// mode with a keyboard, or Keyboard & mouse): the move stick, FIRE and the other
+// play controls are off, and the mouse aims. The screen is still a touchscreen,
+// so what a finger can usefully reach stays: the weapons strip and its grip,
+// and the chrome pills (touch_desk_pills). The engine's vote chip takes its
+// own fingers before they reach here (touch_vote.c).
+//
+// vid_touchscreen_detected is the engine's "a touchscreen exists" from its
+// hardware scan (vid_touchdetect.c). A finger on the glass is proof enough too:
+// SDL often lists no touch device until the first one lands.
+bool Touch_DeskActive(void)
+{
+	if (cvar("vid_touchscreen") || Touch_CustomizeActive() || Touch_Chat_Active())
+		return false;
+	if (mv_active || intermission || scoreboard_ui_enabled || cursor_active)
+		return false;
+	if (autocvar__menu_alpha >= 1)
+		return false;
+	return cvar("vid_touchscreen_detected") || Touch_AnyFingerDown();
+}
+
+bool Touch_DeskPills(void)
+{
+	return Touch_DeskActive() && autocvar_touch_desk_pills;
+}
+
+// Stock panels build their prompts out of key binds — "You are dead, press SPACE to
+// respawn", "Press primary fire to spectate" — which on a touch-only device names a
+// key the player has no way to press. Where the touch layer puts that command on
+// screen, it answers with the control's own label instead, so the prompt names
+// something the player can see and reach.
+//
+// Gated on vid_touchscreen rather than Touch_Active: the overlay stands down during
+// intermission and mapvote, but the session is still a touch session and the prompts
+// shown there are exactly the ones that need answering.
+//
+// Only *visible* controls answer. Naming a button that is switched off would be
+// worse than naming a key, because the player would go looking for it.
+string Touch_CommandLabel(string command)
+{
+	if (!cvar("vid_touchscreen"))
+		return "";
+	// Spectating, the prompts name the spectator buttons (touch_spectate.qc).
+	string spec_label = Touch_Spec_CommandLabel(command);
+	if (spec_label != "")
+		return spec_label;
+	if (command == "+jump" && autocvar_touch_jump_visible)
+		return TOUCH_LABEL_JUMP;
+	// Xonotic's own binds use +fire; +attack is the engine name underneath it.
+	if ((command == "+fire" || command == "+attack") && autocvar_touch_fire_visible)
+		return TOUCH_LABEL_FIRE;
+	if (command == "+fire2" && Touch_Fire2Available())
+		return TOUCH_LABEL_FIRE2;
+	if (command == "+crouch" && autocvar_touch_crouch_visible)
+		return TOUCH_LABEL_CROUCH;
+	if (command == "+hook" && Touch_HookAvailable())
+		return TOUCH_LABEL_HOOK;
+	return "";
+}
+
+void Touch_SetKey(string key, bool down)
+{
+	if (key == "forward")
+	{
+		if (down) { if (!touch_key_forward) { localcmd("+forward " TOUCH_HOLD_KEY "\n"); touch_key_forward = true; touch_owns_forward = true; touch_debug_cmds += 1; } }
+		else if (touch_key_forward && touch_owns_forward) { localcmd("-forward " TOUCH_HOLD_KEY "\n"); touch_key_forward = false; touch_owns_forward = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "back")
+	{
+		if (down) { if (!touch_key_back) { localcmd("+back " TOUCH_HOLD_KEY "\n"); touch_key_back = true; touch_owns_back = true; touch_debug_cmds += 1; } }
+		else if (touch_key_back && touch_owns_back) { localcmd("-back " TOUCH_HOLD_KEY "\n"); touch_key_back = false; touch_owns_back = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "moveleft")
+	{
+		if (down) { if (!touch_key_left) { localcmd("+moveleft " TOUCH_HOLD_KEY "\n"); touch_key_left = true; touch_owns_left = true; touch_debug_cmds += 1; } }
+		else if (touch_key_left && touch_owns_left) { localcmd("-moveleft " TOUCH_HOLD_KEY "\n"); touch_key_left = false; touch_owns_left = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "moveright")
+	{
+		if (down) { if (!touch_key_right) { localcmd("+moveright " TOUCH_HOLD_KEY "\n"); touch_key_right = true; touch_owns_right = true; touch_debug_cmds += 1; } }
+		else if (touch_key_right && touch_owns_right) { localcmd("-moveright " TOUCH_HOLD_KEY "\n"); touch_key_right = false; touch_owns_right = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "attack")
+	{
+		if (down) { if (!touch_key_attack) { localcmd("+attack " TOUCH_HOLD_KEY "\n"); touch_key_attack = true; touch_owns_attack = true; touch_debug_cmds += 1; } }
+		else if (touch_key_attack && touch_owns_attack) { localcmd("-attack " TOUCH_HOLD_KEY "\n"); touch_key_attack = false; touch_owns_attack = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "attack2")
+	{
+		if (down) { if (!touch_key_attack2) { localcmd("+attack2 " TOUCH_HOLD_KEY "\n"); touch_key_attack2 = true; touch_owns_attack2 = true; touch_debug_cmds += 1; } }
+		else if (touch_key_attack2 && touch_owns_attack2) { localcmd("-attack2 " TOUCH_HOLD_KEY "\n"); touch_key_attack2 = false; touch_owns_attack2 = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "jump")
+	{
+		if (down) { if (!touch_key_jump) { localcmd("+jump " TOUCH_HOLD_KEY "\n"); touch_key_jump = true; touch_owns_jump = true; touch_debug_cmds += 1; } }
+		else if (touch_key_jump && touch_owns_jump) { localcmd("-jump " TOUCH_HOLD_KEY "\n"); touch_key_jump = false; touch_owns_jump = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "crouch")
+	{
+		if (down) { if (!touch_key_crouch) { localcmd("+crouch " TOUCH_HOLD_KEY "\n"); touch_key_crouch = true; touch_owns_crouch = true; touch_debug_cmds += 1; } }
+		else if (touch_key_crouch && touch_owns_crouch) { localcmd("-crouch " TOUCH_HOLD_KEY "\n"); touch_key_crouch = false; touch_owns_crouch = false; touch_debug_cmds += 1; }
+	}
+	else if (key == "zoom")
+	{
+		if (down) { if (!touch_key_zoom) { localcmd("+zoom " TOUCH_HOLD_KEY "\n"); touch_key_zoom = true; touch_owns_zoom = true; touch_debug_cmds += 1; } }
+		else if (touch_key_zoom && touch_owns_zoom) { localcmd("-zoom " TOUCH_HOLD_KEY "\n"); touch_key_zoom = false; touch_owns_zoom = false; touch_debug_cmds += 1; }
+	}
+}
+
+void Touch_SetHook(bool down)
+{
+	if (down == touch_key_hook)
+		return;
+	touch_key_hook = down;
+	localcmd(down ? "+touch_hook\n" : "-touch_hook\n");
+	touch_debug_cmds += 1;
+}
+
+// The offhand grenade from the NADE row: the engine's touch_nade.c holds
+// +hook for it, with the safety that throws before the blast.
+void Touch_SetNade(bool down)
+{
+	if (down == touch_key_nade)
+		return;
+	touch_key_nade = down;
+	localcmd(down ? "+touch_nade\n" : "-touch_nade\n");
+	touch_debug_cmds += 1;
+}
+
+bool Touch_NadeHeld(void)
+{
+	return touch_key_nade;
+}
+
+void Touch_ReleaseAll(void)
+{
+	Touch_Spec_Release();
+	int i;
+	Touch_SetKey("forward", false);
+	Touch_SetKey("back", false);
+	Touch_SetKey("moveleft", false);
+	Touch_SetKey("moveright", false);
+	Touch_SetKey("attack", false);
+	Touch_SetKey("attack2", false);
+	Touch_SetKey("jump", false);
+	Touch_SetKey("crouch", false);
+	Touch_SetKey("zoom", false);
+	Touch_SetHook(false);
+	Touch_SetNade(false);
+	touch_fire_down = false;
+	touch_fire_toggle_state = false;
+	touch_zoom_toggle_state = false;
+	touch_move_offset = '0 0 0';
+	touch_mouse_down = false;
+	touch_active_finger_count = 0;
+	// Same reason as the hop latch below: the overlay is gone at intermission and
+	// mapvote, so a held +showscores would have nothing left on screen to say it
+	// was held and no pill to release it.
+	Touch_Scores_Hide();
+	// The hop latch must not survive into a menu or across a map change, or the
+	// player would spawn already holding jump with nothing on screen saying so.
+	touch_hop_latched = false;
+	touch_jump_edge = false;
+	touch_hop_cancelling = false;
+	touch_tapfire_until = 0;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		touch_finger_used[i] = false;
+		touch_finger_role[i] = TOUCH_ROLE_NONE;
+		touch_finger_live[i] = false;
+		touch_finger_lost_time[i] = 0;
+		touch_finger_draglook[i] = false;
+	}
+	Touch_Hud_GripEnd();
+	Touch_Console_Reset();
+	Touch_Pause_Reset();
+	Touch_Look_EndGesture();
+	Touch_Look_SetOwnership(false);
+}
+
+vector Touch_SampleEngineFinger(int src)
+{
+	// Prefer gettouchfinger for POINTER (slot 10 = SDL mouse). getmousepos() can
+	// return 0,0 on press while -attack still needs consuming (B2).
+	if (!checkextension("DP_UT_TOUCHFINGER"))
+		return '0 0 0';
+	vector f = gettouchfinger(src);
+	if (f.z <= 0)
+		return '0 0 0';
+	f = Touch_NormalizeInput(f);
+	f.z = 1;
+	return f;
+}
+
+int Touch_FindFingerBySrc(int src)
+{
+	int i;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+		if (touch_finger_used[i] && touch_finger_src[i] == src)
+			return i;
+	return -1;
+}
+
+bool Touch_RoleOwned(int role)
+{
+	int i;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+		if (touch_finger_used[i] && touch_finger_role[i] == role && touch_finger_live[i])
+			return true;
+	return false;
+}
+
+int Touch_AssignRole(vector p)
+{
+	bool pills = !touch_desk || autocvar_touch_desk_pills;
+	if (pills && Touch_Console_Hit(p))
+		return TOUCH_ROLE_CON;
+
+	if (pills && Touch_Pause_PillHit(p))
+		return TOUCH_ROLE_PAUSE;
+
+	if (pills && Touch_Chat_PillHit(p))
+		return TOUCH_ROLE_CHAT;
+
+	if (pills && Touch_Scores_PillHit(p))
+		return TOUCH_ROLE_SCORES;
+
+	// Spectating, the controls mean what the spectator code reads (touch_spectate.qc).
+	int spec_role = Touch_Spec_AssignRole(p);
+	if (spec_role != TOUCH_ROLE_NONE)
+		return spec_role;
+
+	// Before the rows: the grip's area starts where the last row ends, and the
+	// rows are inflated for fat fingers.
+	if (Touch_Weapons_GripHit(p))
+		return TOUCH_ROLE_WEPSIZE;
+
+	// The NADE row, under the last weapon.
+	if (Touch_Weapons_NadeHit(p))
+		return Touch_RoleOwned(TOUCH_ROLE_NADE) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_NADE;
+
+	// Stock vertical weapons strip — tap icon to switch (replaces WEP button).
+	if (Touch_Weapons_Hit(p))
+		return TOUCH_ROLE_WEAPON;
+
+	// Nothing else is on screen to press. The engine turns the view with a
+	// finger that lands anywhere else (TouchHUD_LookWithoutControls).
+	if (touch_desk)
+		return TOUCH_ROLE_IGNORED;
+
+	if (Touch_InEdgeDeadzone(p))
+		return TOUCH_ROLE_IGNORED;
+
+	if (autocvar_touch_fire_visible && Touch_HitCircle(p, autocvar_touch_fire_x, autocvar_touch_fire_y, autocvar_touch_fire_size, 1.15))
+		return TOUCH_ROLE_FIRE;
+	if (Touch_Fire2Available() && Touch_HitCircle(p, autocvar_touch_fire2_x, autocvar_touch_fire2_y, autocvar_touch_fire2_size, 1.15))
+		return TOUCH_ROLE_FIRE2;
+	if (autocvar_touch_jump_visible && Touch_HitRect(p, autocvar_touch_jump_x, autocvar_touch_jump_y, autocvar_touch_jump_size, autocvar_touch_jump_aspect, 1.10))
+		return TOUCH_ROLE_JUMP;
+	if (Touch_HopLockShown() && Touch_HopLockHit(p))
+		return TOUCH_ROLE_HOPLOCK;
+	if (autocvar_touch_crouch_visible && Touch_HitCircle(p, autocvar_touch_crouch_x, autocvar_touch_crouch_y, autocvar_touch_crouch_size, 1.10))
+		return TOUCH_ROLE_CROUCH;
+	if (autocvar_touch_weapon_visible && Touch_HitCircle(p, autocvar_touch_weapon_x, autocvar_touch_weapon_y, autocvar_touch_weapon_size, 1.10))
+		return TOUCH_ROLE_WEAPON;
+	if (Touch_ZoomAvailable() && Touch_HitCircle(p, autocvar_touch_zoom_x, autocvar_touch_zoom_y, autocvar_touch_zoom_size, 1.10))
+		return TOUCH_ROLE_ZOOM;
+	if (Touch_HookAvailable() && Touch_HitCircle(p, autocvar_touch_hook_x, autocvar_touch_hook_y, autocvar_touch_hook_size, 1.10))
+		return TOUCH_ROLE_HOOK;
+	if (Touch_TurnAvailable() && Touch_HitCircle(p, autocvar_touch_turn_x, autocvar_touch_turn_y, autocvar_touch_turn_size, 1.10))
+		return TOUCH_ROLE_TURN;
+	if (autocvar_touch_reload_visible && Touch_HitCircle(p, autocvar_touch_reload_x, autocvar_touch_reload_y, autocvar_touch_reload_size, 1.10))
+		return TOUCH_ROLE_RELOAD;
+	if (autocvar_touch_dodge_visible && Touch_HitCircle(p, autocvar_touch_dodge_x, autocvar_touch_dodge_y, autocvar_touch_dodge_size, 1.10))
+		return TOUCH_ROLE_DODGE;
+
+	if (Touch_InMoveZone(p) || (autocvar_touch_move_visible && Touch_HitCircle(p, autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size, 1.0)))
+	{
+		if (Touch_RoleOwned(TOUCH_ROLE_MOVE))
+			return TOUCH_ROLE_IGNORED;
+		return TOUCH_ROLE_MOVE;
+	}
+
+	if (Touch_InLookZone(p))
+	{
+		if (Touch_RoleOwned(TOUCH_ROLE_LOOK))
+			return TOUCH_ROLE_IGNORED;
+		return TOUCH_ROLE_LOOK;
+	}
+
+	// Upper-left (and other residual gaps) would otherwise be dead: move needs
+	// y>0.42 and look needs x≥look_zone_left (B5). Prefer LOOK for aim.
+	if (Touch_RoleOwned(TOUCH_ROLE_LOOK))
+		return TOUCH_ROLE_IGNORED;
+	return TOUCH_ROLE_LOOK;
+}
+
+int Touch_ClaimFinger(int src, vector pos)
+{
+	int i;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		if (touch_finger_used[i])
+			continue;
+		touch_finger_used[i] = true;
+		touch_finger_src[i] = src;
+		touch_finger_down_pos[i] = pos;
+		touch_finger_last_pos[i] = pos;
+		touch_finger_prev_pos[i] = pos;
+		touch_finger_accum[i] = '0 0 0';
+		touch_finger_down_time[i] = gettime(GETTIME_FRAMESTART);
+		touch_finger_lost_time[i] = 0;
+		touch_finger_first[i] = true;
+		touch_finger_live[i] = true;
+		touch_finger_draglook[i] = false;
+		touch_finger_role[i] = Touch_AssignRole(pos);
+		if (touch_finger_role[i] == TOUCH_ROLE_CON)
+			Touch_Console_OnDown(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_PAUSE)
+			Touch_Pause_OnDown(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_CHAT)
+			Touch_Chat_OnDown(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_SCORES)
+			Touch_Scores_OnDown(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_WEPSIZE)
+			Touch_Hud_GripBegin(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_LOOK)
+			Touch_Look_BeginGesture(pos);
+		else if (touch_finger_role[i] == TOUCH_ROLE_TURN)
+			localcmd("touch_turn\n"); // on the press: the engine spins the view
+		else if (touch_finger_role[i] == TOUCH_ROLE_WEAPON)
+		{
+			float imp = Touch_Weapons_HitImpulse(pos);
+			if (imp >= 0)
+				Touch_Weapons_SelectImpulse(imp);
+			else if (autocvar_touch_weapon_mode == TOUCH_WEAPON_CYCLE && autocvar_touch_weapon_visible)
+				localcmd("weapnext\n");
+		}
+		return i;
+	}
+	return -1;
+}
+
+void Touch_ApplyMove(vector deflection)
+{
+	float dz = autocvar_touch_stick_deadzone;
+	float mag = vlen(deflection);
+	if (mag < dz)
+	{
+		Touch_SetKey("forward", false);
+		Touch_SetKey("back", false);
+		Touch_SetKey("moveleft", false);
+		Touch_SetKey("moveright", false);
+		return;
+	}
+	vector d = deflection * (autocvar_touch_stick_range / max(mag, 0.001));
+	Touch_SetKey("forward", d.y < -0.15);
+	Touch_SetKey("back", d.y > 0.15);
+	Touch_SetKey("moveleft", d.x < -0.15);
+	Touch_SetKey("moveright", d.x > 0.15);
+}
+
+void Touch_PollFingers(void)
+{
+	bool seen0 = false;
+	bool seen1 = false;
+	bool seen2 = false;
+	bool seen3 = false;
+
+	touch_active_finger_count = 0;
+
+	if (checkextension("DP_UT_TOUCHFINGER"))
+	{
+		int s;
+		for (s = 0; s < TOUCH_ENGINE_SLOTS; ++s)
+		{
+			vector f = Touch_SampleEngineFinger(s);
+			if (f.z <= 0)
+				continue;
+			int idx = Touch_FindFingerBySrc(s);
+			if (idx < 0)
+				idx = Touch_ClaimFinger(s, f);
+			if (idx < 0)
+				continue;
+			if (idx == 0) seen0 = true;
+			else if (idx == 1) seen1 = true;
+			else if (idx == 2) seen2 = true;
+			else if (idx == 3) seen3 = true;
+			touch_finger_live[idx] = true;
+			touch_finger_lost_time[idx] = 0;
+			touch_finger_prev_pos[idx] = touch_finger_last_pos[idx];
+			touch_finger_last_pos[idx] = f;
+			if (!touch_finger_first[idx])
+				touch_finger_accum[idx] = f - touch_finger_prev_pos[idx];
+			else
+				touch_finger_accum[idx] = '0 0 0';
+			touch_active_finger_count += 1;
+		}
+	}
+
+	// SDL mouse lives in engine slot MAXFINGERS-1 (=10). Engine zeros it when
+	// real fingers are active, so only poll when slots 0..9 were empty.
+	if (touch_active_finger_count == 0)
+	{
+		vector f = Touch_SampleEngineFinger(TOUCH_SRC_POINTER);
+		if (f.z > 0)
+		{
+			int idx = Touch_FindFingerBySrc(TOUCH_SRC_POINTER);
+			if (idx < 0)
+				idx = Touch_ClaimFinger(TOUCH_SRC_POINTER, f);
+			if (idx >= 0)
+			{
+				if (idx == 0) seen0 = true;
+				else if (idx == 1) seen1 = true;
+				else if (idx == 2) seen2 = true;
+				else if (idx == 3) seen3 = true;
+				touch_finger_live[idx] = true;
+				touch_finger_lost_time[idx] = 0;
+				touch_finger_prev_pos[idx] = touch_finger_last_pos[idx];
+				touch_finger_last_pos[idx] = f;
+				if (!touch_finger_first[idx])
+					touch_finger_accum[idx] = f - touch_finger_prev_pos[idx];
+				else
+					touch_finger_accum[idx] = '0 0 0';
+				touch_active_finger_count += 1;
+			}
+		}
+	}
+
+	float grace = autocvar_touch_finger_grace_ms / 1000.0;
+	int i;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		if (!touch_finger_used[i])
+			continue;
+		bool seen = false;
+		if (i == 0) seen = seen0;
+		else if (i == 1) seen = seen1;
+		else if (i == 2) seen = seen2;
+		else if (i == 3) seen = seen3;
+		if (seen)
+			continue;
+		// Chrome pills must not use the lost-finger grace (B4 + pause realtime):
+		// a pill is a discrete tap that commits on release, and keeping the
+		// finger alive past the release would re-fire it on the next frame.
+		// The grip too: a lost frame is no reason to hold a resize open.
+		int role = touch_finger_role[i];
+		if (role == TOUCH_ROLE_CON || role == TOUCH_ROLE_PAUSE || role == TOUCH_ROLE_CHAT
+			|| role == TOUCH_ROLE_SCORES || role == TOUCH_ROLE_WEPSIZE
+			|| role == TOUCH_ROLE_HOPLOCK)
+		{
+			vector up = touch_finger_last_pos[i];
+			if (role == TOUCH_ROLE_HOPLOCK)
+				Touch_HopLock_OnUp(up);
+			else if (role == TOUCH_ROLE_CON)
+				Touch_Console_OnUp(up);
+			else if (role == TOUCH_ROLE_PAUSE)
+				Touch_Pause_OnUp(up);
+			else if (role == TOUCH_ROLE_SCORES)
+				Touch_Scores_OnUp(up);
+			else if (role == TOUCH_ROLE_WEPSIZE)
+				Touch_Hud_GripEnd();
+			else
+				Touch_Chat_OnUp(up);
+			touch_finger_used[i] = false;
+			touch_finger_role[i] = TOUCH_ROLE_NONE;
+			touch_finger_live[i] = false;
+			touch_finger_lost_time[i] = 0;
+			continue;
+		}
+		if (touch_finger_lost_time[i] <= 0)
+			touch_finger_lost_time[i] = gettime(GETTIME_FRAMESTART);
+		if (gettime(GETTIME_FRAMESTART) - touch_finger_lost_time[i] < grace)
+		{
+			touch_finger_live[i] = true;
+			touch_finger_accum[i] = '0 0 0';
+			continue;
+		}
+		if (touch_finger_role[i] == TOUCH_ROLE_LOOK)
+		{
+			// A look gesture that never escaped the deadzone and lifted quickly
+			// was a tap, not an aim: fire one shot. This is the right thumb's
+			// fallback when it is away from the FIRE disc. We deliberately do not
+			// aim at the touched point — a fingertip fully occludes its target.
+			if (autocvar_touch_look_tap_fire && !Touch_Look_Escaped()
+				&& touch_finger_lost_time[i] - touch_finger_down_time[i]
+					<= autocvar_touch_look_tap_ms / 1000.0)
+				touch_tapfire_until = time + 0.06;
+			Touch_Look_EndGesture();
+		}
+		touch_finger_used[i] = false;
+		touch_finger_role[i] = TOUCH_ROLE_NONE;
+		touch_finger_live[i] = false;
+		touch_finger_draglook[i] = false;
+	}
+}
+
+void Touch_EnsureReady(void)
+{
+	if (touch_ready)
+		return;
+	Touch_Look_Reset();
+	Touch_Console_InitDefaults();
+	Touch_Pause_InitDefaults();
+	Touch_Customize_Reset();
+	Touch_Chat_Reset();
+	Touch_Scores_Reset();
+	Touch_Kb_Reset();
+	// Before anything reads a touch cvar: a stale saved layout is still in force
+	// at this point, and the migration is what replaces it with the new defaults.
+	Touch_MigrateLayout();
+	Touch_ApplyTouchWeaponsStrip();
+	Touch_ApplyChatFeedSettings();
+	Touch_ApplyTimerPanel();
+	Touch_ApplyNotifyPanel();
+	// Migrate legacy simple_draw → glass_quality once.
+	if (cvar("touch_simple_draw") && !cvar("touch_glass_quality"))
+		cvar_set("touch_glass_quality", "0");
+	touch_ready = true;
+	touch_last_fire_mode = autocvar_touch_fire_mode;
+}
+
+void Touch_TickDebugCmds(void)
+{
+	if (touch_debug_cmd_window <= 0)
+		touch_debug_cmd_window = time;
+	if (time - touch_debug_cmd_window >= 1.0)
+	{
+		touch_debug_cmds_per_sec = touch_debug_cmds;
+		touch_debug_cmds = 0;
+		touch_debug_cmd_window = time;
+	}
+}
+
+// One frame of a finger on something that is not a play control: the pills,
+// the strip's grip. False for any other role.
+bool Touch_ChromeFingerFrame(int role, vector pos)
+{
+	if (role == TOUCH_ROLE_CON)
+	{
+		Touch_Console_PromoteHold();
+		Touch_Console_OnMove(pos);
+	}
+	else if (role == TOUCH_ROLE_PAUSE)
+		Touch_Pause_OnMove(pos);
+	else if (role == TOUCH_ROLE_CHAT)
+		Touch_Chat_OnMove(pos);
+	else if (role == TOUCH_ROLE_SCORES)
+		Touch_Scores_OnMove(pos);
+	else if (role == TOUCH_ROLE_WEPSIZE)
+		Touch_Hud_GripMove(pos);
+	else
+		return false;
+	return true;
+}
+
+// Demote cancelled CON / PAUSE fingers (ARMING→CANCEL→IDLE while finger still live)
+void Touch_DemoteCancelled(void)
+{
+	for (int i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		if (!touch_finger_used[i])
+			continue;
+		if (touch_finger_role[i] == TOUCH_ROLE_CON && !Touch_Console_Busy())
+			touch_finger_role[i] = TOUCH_ROLE_IGNORED;
+		if (touch_finger_role[i] == TOUCH_ROLE_PAUSE && !Touch_Pause_Busy())
+			touch_finger_role[i] = TOUCH_ROLE_IGNORED;
+	}
+}
+
+// With the controls off the engine turns the view with the first finger down
+// (TouchHUD_LookWithoutControls), which knows nothing of this HUD. The engine
+// slots this layer has given a role, as a bit mask, so that a finger on the
+// strip, its grip or a pill does not also turn the view.
+void Touch_ReportDeskClaim(int mask)
+{
+	if (mask == touch_desk_claim_sent)
+		return;
+	touch_desk_claim_sent = mask;
+	cvar_set("_cl_touch_desk_fingers", ftos(mask));
+}
+
+// Fingers with the controls off (Touch_DeskActive). The mouse keeps the view:
+// nothing here holds a key or turns it.
+void Touch_DeskFrame(void)
+{
+	if (!touch_desk_on)
+	{
+		// Whatever the controls held when they went away is let go once.
+		Touch_ReleaseAll();
+		touch_desk_on = true;
+	}
+	Touch_Look_SetOwnership(false);
+	touch_desk = true;
+	Touch_PollFingers();
+	touch_desk = false;
+	Touch_Console_Frame();
+	for (int i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		if (!touch_finger_used[i] || !touch_finger_live[i])
+			continue;
+		Touch_ChromeFingerFrame(touch_finger_role[i], touch_finger_last_pos[i]);
+		touch_finger_first[i] = false;
+	}
+	Touch_DemoteCancelled();
+	int mask = 0;
+	for (int i = 0; i < TOUCH_MAX_FINGERS; ++i)
+		if (touch_finger_used[i] && touch_finger_role[i] >= 0
+			&& touch_finger_src[i] < TOUCH_ENGINE_SLOTS)
+			mask |= BIT(touch_finger_src[i]);
+	Touch_ReportDeskClaim(mask);
+}
+
+void Touch_Frame(void)
+{
+	Touch_EnsureReady();
+	touch_debug_fills = 0;
+	Touch_TickDebugCmds();
+
+	if (cvar("touch_autoscreenshot") && !touch_autoscreenshot_done)
+	{
+		touch_autoscreenshot_frames += 1;
+		if (touch_autoscreenshot_frames > 90) // ~3s at 30fps
+		{
+			touch_autoscreenshot_done = true;
+			localcmd("\nscreenshot\n");
+			print("Touch: autoscreenshot fired\n");
+			cvar_set("touch_autoscreenshot", "0");
+		}
+	}
+
+	if (Touch_CustomizeActive())
+	{
+		Touch_ReportHudState(-1);
+		Touch_Customize_Frame();
+		return;
+	}
+	if (Touch_Chat_Active())
+	{
+		Touch_ReportHudState(-1);
+		Touch_Chat_Frame();
+		return;
+	}
+	if (!Touch_Active())
+	{
+		Touch_ReportHudState(-1);
+		if (Touch_DeskActive())
+		{
+			Touch_DeskFrame();
+			return;
+		}
+		touch_desk_on = false;
+		Touch_ReportDeskClaim(0);
+		Touch_ReleaseAll();
+		return;
+	}
+	// The fingers placed with the controls off carry over: every role they
+	// can hold is one the controls have too.
+	touch_desk_on = false;
+	Touch_ReportDeskClaim(0);
+
+	Touch_Look_SetOwnership(Touch_Active());
+	Touch_PollFingers();
+	Touch_Console_Frame();
+	Touch_Pause_Frame();
+
+	if (autocvar_touch_fire_mode != touch_last_fire_mode)
+	{
+		if (autocvar_touch_fire_mode == TOUCH_FIRE_HOLD)
+			touch_fire_toggle_state = false;
+		touch_last_fire_mode = autocvar_touch_fire_mode;
+	}
+
+	touch_move_offset = '0 0 0';
+	int fire_count = 0;
+	bool fire2_down = false;
+	bool jump_down = false;
+	bool crouch_down = false;
+	bool zoom_down = false;
+	bool hook_down = false, nade_down = false;
+	bool move_active = false;
+	bool look_active = false;
+	vector look_accum = '0 0 0';
+	vector look_last = '0 0 0';
+	bool look_first = false;
+
+	int i;
+	for (i = 0; i < TOUCH_MAX_FINGERS; ++i)
+	{
+		if (!touch_finger_used[i] || !touch_finger_live[i])
+			continue;
+		int role = touch_finger_role[i];
+		vector pos = touch_finger_last_pos[i];
+
+		if (Touch_ChromeFingerFrame(role, pos))
+		{
+			// a pill or the strip's grip: nothing to hold
+		}
+		else if (Touch_Spec_FingerFrame(role, touch_finger_first[i]))
+		{
+			// a spectator button: collected in Touch_Spec_Frame
+		}
+		else if (role == TOUCH_ROLE_MOVE)
+		{
+			move_active = true;
+			vector center = Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
+			float radius = Touch_WidgetRadius(autocvar_touch_move_size);
+			vector off = pos - center;
+			off.z = 0;
+			float mag = vlen(off);
+			if (mag > radius)
+				off = normalize(off) * radius;
+			touch_move_offset = off * (1.0 / max(radius, 1));
+			Touch_ApplyMove(touch_move_offset);
+		}
+		else if (role == TOUCH_ROLE_LOOK)
+		{
+			look_active = true;
+			look_accum = touch_finger_accum[i];
+			look_last = pos;
+			look_first = touch_finger_first[i];
+		}
+		else if (role == TOUCH_ROLE_FIRE || role == TOUCH_ROLE_HOOK || role == TOUCH_ROLE_NADE)
+		{
+			// NADE too: a drag off the row aims the throw
+			if (role == TOUCH_ROLE_FIRE)
+				fire_count += 1;
+			else if (role == TOUCH_ROLE_HOOK)
+				hook_down = true;
+			else
+				nade_down = true;
+			// CoD Mobile's "R-Fire BTN for camera rotation": the fire button is
+			// also an aim surface, so shoot-while-aiming is one finger instead of
+			// two. Fire is not released when the drag starts. A dedicated look
+			// finger keeps priority. HOOK too: the hook goes where the view looks.
+			if (autocvar_touch_fire_drag_look && !look_active)
+			{
+				vector from_down = pos - touch_finger_down_pos[i];
+				from_down.z = 0;
+				if (!touch_finger_draglook[i]
+					&& vlen(from_down) >= autocvar_touch_look_deadzone_px)
+				{
+					touch_finger_draglook[i] = true;
+					// Start already escaped: the finger has demonstrably moved,
+					// so re-running the deadzone would waste a frame of aim.
+					Touch_Look_BeginGestureEscaped(pos);
+				}
+				if (touch_finger_draglook[i])
+				{
+					look_active = true;
+					look_accum = touch_finger_accum[i];
+					look_last = pos;
+					look_first = false;
+				}
+			}
+		}
+		// Secondary fire, as the engine HUD has it: the claw, and for a
+		// spectator the way back to observing.
+		else if (role == TOUCH_ROLE_FIRE2)
+			fire2_down = true;
+		else if (role == TOUCH_ROLE_JUMP)
+			jump_down = true;
+		else if (role == TOUCH_ROLE_CROUCH)
+			crouch_down = true;
+		else if (role == TOUCH_ROLE_ZOOM)
+			zoom_down = true;
+		else if (role == TOUCH_ROLE_RELOAD && touch_finger_first[i])
+			localcmd("weapon_reload\n");
+		else if (role == TOUCH_ROLE_DODGE && touch_finger_first[i])
+		{
+			localcmd("+dodge\n");
+			localcmd("-dodge\n");
+		}
+
+		touch_finger_first[i] = false;
+	}
+
+	Touch_DemoteCancelled();
+
+	if (!move_active)
+	{
+		touch_move_offset = '0 0 0';
+		Touch_ApplyMove('0 0 0');
+	}
+
+	Touch_Look_Frame(look_accum, look_last, look_first, look_active);
+	Touch_ReportWeaponClass();
+	Touch_ReportHudState((look_active || fire_count > 0) ? 1 : 0);
+
+	Touch_Spec_Frame();
+	if (touch_spec_attack)
+		fire_count += 1;
+	if (touch_spec_attack2)
+		fire2_down = true;
+	if (touch_spec_jump)
+		jump_down = true;
+	touch_spec_attack = false;
+	touch_spec_attack2 = false;
+
+	bool pressed_fire = fire_count > 0;
+	// Spectating, +attack is "follow" / "next player": a look tap must not send it.
+	bool tap_fire = time < touch_tapfire_until && !Touch_Spec_State();
+	if (autocvar_touch_fire_mode == TOUCH_FIRE_TOGGLE)
+	{
+		if (pressed_fire && !touch_fire_edge)
+			touch_fire_toggle_state = !touch_fire_toggle_state;
+		touch_fire_edge = pressed_fire;
+		Touch_SetKey("attack", touch_fire_toggle_state || tap_fire || autocvar_touch_auto_fire);
+	}
+	else
+	{
+		touch_fire_edge = pressed_fire;
+		Touch_SetKey("attack", pressed_fire || tap_fire || autocvar_touch_auto_fire);
+	}
+	touch_fire_down = pressed_fire;
+	Touch_SetKey("attack2", fire2_down);
+
+	// Jump is two different actions on this game. A single jump clears a gap or
+	// a step, and needs to happen the instant the finger lands. Bunny-hopping
+	// needs the key *held*, which on a tablet would cost one of only two thumbs.
+	//
+	// So the bar is a button first and a latch second: it jumps on press like
+	// any button, and only latches if the finger stays down past
+	// touch_hop_latch_ms. Tapping while latched stops the hop. A pure toggle
+	// would be cheaper but takes the single jump away, which is the more common
+	// of the two actions.
+	// In latch mode the only thing that clears the latch is a deliberate tap, so a
+	// latch set under a different mode would otherwise survive the switch and hold
+	// jump down forever — a profile change mid-session left the player hopping with
+	// no finger on the bar and no way to stop but another profile change.
+	if (autocvar_touch_hop_mode != touch_last_hop_mode)
+	{
+		touch_last_hop_mode = autocvar_touch_hop_mode;
+		touch_hop_latched = false;
+		touch_hop_cancelling = false;
+	}
+
+	// Observing or spectating, jump is "join": the stick must not hold it
+	// (auto-hop would join the moment the observer moved) and a long press
+	// must not latch it into the first life. JUMP is a plain button here.
+	if (spectatee_status != 0)
+	{
+		touch_hop_latched = false;
+		// The finger that joins is still down on the first frame of the life,
+		// where latch mode sees no new press and a stale touch_hop_press_time
+		// already reads as "held long enough". Spend the press here, as a tap
+		// that stops a hop does, so the latch waits for the next one.
+		touch_hop_cancelling = jump_down;
+		Touch_SetKey("jump", jump_down);
+	}
+	else if (autocvar_touch_hop_mode == TOUCH_HOP_LATCH)
+	{
+		if (jump_down && !touch_jump_edge)
+		{
+			if (touch_hop_latched)
+			{
+				// This press means "stop". It must not also read as a jump, and
+				// a lingering thumb must not immediately re-latch.
+				touch_hop_latched = false;
+				touch_hop_cancelling = true;
+			}
+			else
+				touch_hop_press_time = time;
+		}
+		if (!jump_down)
+			touch_hop_cancelling = false;
+		if (jump_down && !touch_hop_cancelling && !touch_hop_latched
+			&& time - touch_hop_press_time >= autocvar_touch_hop_latch_ms * 0.001)
+			touch_hop_latched = true;
+		Touch_SetKey("jump", touch_hop_latched || (jump_down && !touch_hop_cancelling));
+	}
+	else if (autocvar_touch_hop_mode == TOUCH_HOP_CHIP)
+	{
+		// HOP is a plain button; only the chip sets and clears the latch
+		// (Touch_HopLock_OnUp). A dead player drops it: held jump respawns.
+		if (STAT(HEALTH) <= 0)
+			touch_hop_latched = false;
+		Touch_SetKey("jump", jump_down || touch_hop_latched);
+	}
+	else if (autocvar_touch_hop_mode == TOUCH_HOP_AUTO)
+	{
+		touch_hop_latched = vlen(touch_move_offset) >= autocvar_touch_stick_deadzone;
+		Touch_SetKey("jump", jump_down || touch_hop_latched);
+	}
+	else
+	{
+		touch_hop_latched = false;
+		Touch_SetKey("jump", jump_down);
+	}
+	touch_jump_edge = jump_down;
+
+	Touch_SetKey("crouch", crouch_down);
+
+	if (autocvar_touch_zoom_mode == TOUCH_ZOOM_TOGGLE)
+	{
+		if (zoom_down && !touch_zoom_edge)
+			touch_zoom_toggle_state = !touch_zoom_toggle_state;
+		// A toggled zoom lets go when ZOOM goes away (a switch to a weapon
+		// without a scope), or it would stay stuck on with nothing to press.
+		if (!Touch_ZoomAvailable())
+			touch_zoom_toggle_state = false;
+		touch_zoom_edge = zoom_down;
+		Touch_SetKey("zoom", touch_zoom_toggle_state);
+	}
+	else
+	{
+		touch_zoom_edge = zoom_down;
+		Touch_SetKey("zoom", zoom_down);
+	}
+
+	Touch_SetHook(hook_down);
+	Touch_SetNade(nade_down);
+}
+
+bool Touch_InputEvent(float bInputType, float nPrimary, float nSecondary)
+{
+	if (Touch_Customize_InputEvent(bInputType, nPrimary, nSecondary))
+		return true;
+	if (!Touch_Active() || Touch_CustomizeActive())
+		return false;
+
+	// The chat sheet is modal and covers the controls, so Escape has to close it
+	// rather than fall through and open the game menu behind it.
+	if (Touch_Chat_Active() && bInputType == 0 && nPrimary == K_ESCAPE)
+	{
+		Touch_Chat_Close();
+		return true;
+	}
+
+	// Typing on a real keyboard while the chat sheet is open goes into the
+	// message, not to the game's binds.
+	if (Touch_Chat_KeyEvent(bInputType, nPrimary, nSecondary))
+		return true;
+
+	// Escape clears the board before it reaches the game menu: the board is the
+	// thing on screen, so it is what Escape is aimed at.
+	if (Touch_Scores_Shown() && bInputType == 0 && nPrimary == K_ESCAPE)
+	{
+		Touch_Scores_Hide();
+		return true;
+	}
+
+	// Consume MOUSE1 symmetrically so engine +attack/-attack cannot desync (B2).
+	// Positions come from gettouchfinger(10) in Touch_PollFingers, or getmousepos
+	// in Touch_Pointer_Frame for the modal sheets — never from the event itself.
+	// A mouse the engine has taken for aiming next to the touch controls
+	// (vid_touchscreen_mouselook) is not a pointer on them: its button fires.
+	if (bInputType == 0 && nPrimary == K_MOUSE1)
+	{
+		if (cvar("vid_touchscreen_mouselook"))
+			return false;
+		Touch_SetMouseDown(true);
+		return true;
+	}
+	if (bInputType == 1 && nPrimary == K_MOUSE1)
+	{
+		if (!Touch_MouseDown())
+			return false;
+		Touch_SetMouseDown(false);
+		return true;
+	}
+	if (bInputType == 3)
+		return true;
+	return false;
+}
+
+vector Touch_MoveStickOffset(void)
+{
+	return touch_move_offset;
+}
+
+bool Touch_FireHeld(void)
+{
+	return touch_fire_toggle_state || touch_fire_down;
+}
+
+bool Touch_WeaponWheelOpen(void)
+{
+	return touch_weapon_wheel;
+}
+
+bool Touch_JumpHeld(void)
+{
+	return touch_key_jump;
+}
+
+bool Touch_HopLatched(void)
+{
+	return touch_hop_latched && autocvar_touch_hop_mode != TOUCH_HOP_HOLD;
+}
+
+// The keep-jumping chip: only in its hop mode, never for a spectator (jump is
+// "join" there).
+bool Touch_HopLockShown(void)
+{
+	return autocvar_touch_hop_mode == TOUCH_HOP_CHIP && autocvar_touch_hoplock_visible;
+}
+
+bool Touch_HopLockHit(vector p)
+{
+	return Touch_HitRect(p, autocvar_touch_hoplock_x, autocvar_touch_hoplock_y, autocvar_touch_hoplock_size, 1, 1.10);
+}
+
+bool Touch_HopLockHeld(void)
+{
+	return Touch_RoleOwned(TOUCH_ROLE_HOPLOCK);
+}
+
+// A tap: the finger landed on the chip (Touch_AssignRole) and lifts on it. A
+// finger that slides off first changes nothing, and one that started on HOP
+// never becomes the chip's.
+void Touch_HopLock_OnUp(vector p)
+{
+	if (!Touch_HopLockShown() || !Touch_HopLockHit(p) || spectatee_status != 0 || STAT(HEALTH) <= 0)
+		return;
+	touch_hop_latched = !touch_hop_latched;
+	if (autocvar_touch_debug)
+		print("touch: keep jumping ", (touch_hop_latched ? "on" : "off"), "\n");
+}
+
+bool Touch_Fire2Held(void)
+{
+	return Touch_RoleOwned(TOUCH_ROLE_FIRE2);
+}
+
+// ALT is contextual by default (touch_fire2_visible 2), the way mobile shooters
+// show an ability button only while there is an ability to use: it is there
+// while +fire2 would fire the weapon in hand, and fades out when the weapon has
+// no secondary or it has run dry (out of ammo, no mines left to detonate). The
+// server says which, in STAT(TOUCH_ALTFIRE): only it knows the balance.
+//
+// Availability is the input rule and changes at once, so a fading button
+// already takes no new touch; the fade is only how it looks. A finger already
+// on it keeps it until lifted, like every other role.
+const float TOUCH_FIRE2_FADE_IN = 0.12;
+const float TOUCH_FIRE2_FADE_OUT = 0.35;
+float touch_fire2_fade;
+float touch_fire2_fade_time;
+int touch_fire2_reported = -1;
+float touch_zoom_fade;
+float touch_zoom_fade_time;
+
+// One frame of a contextual button's fade, towards shown or hidden.
+float Touch_FadeStep(float fade, bool shown, float dt)
+{
+	if (shown)
+		return min(1, fade + dt / TOUCH_FIRE2_FADE_IN);
+	return max(0, fade - dt / TOUCH_FIRE2_FADE_OUT);
+}
+
+bool Touch_Fire2Available(void)
+{
+	float mode = autocvar_touch_fire2_visible;
+	if (mode <= 0)
+		return false;
+	if (mode == 1)
+		return true;
+	return STAT(TOUCH_ALTFIRE) == TOUCH_ALTFIRE_READY;
+}
+
+// 0..1 multiplier for drawing ALT; advances the fade, so call it once a frame.
+float Touch_Fire2Alpha(void)
+{
+	float dt = bound(0, time - touch_fire2_fade_time, 0.1);
+	touch_fire2_fade_time = time;
+
+	// _touch_fire2_state: what the server said (0 none, 1 empty, 2 ready), for
+	// tests and the touch_debug readout.
+	int state = STAT(TOUCH_ALTFIRE);
+	if (state != touch_fire2_reported)
+	{
+		touch_fire2_reported = state;
+		cvar_set("_touch_fire2_state", ftos(state));
+	}
+
+	if (autocvar_touch_fire2_visible <= 0)
+		return touch_fire2_fade = 0;
+	// Edit mode places it, and touch_debug 3 previews every control.
+	if (Touch_CustomizeActive() || autocvar_touch_debug >= 3)
+		return touch_fire2_fade = 1;
+	return touch_fire2_fade = Touch_FadeStep(touch_fire2_fade, Touch_Fire2Available(), dt);
+}
+
+// ZOOM is contextual the same way (touch_zoom_visible 2): there while the weapon
+// in hand has a scope, the ones that draw a reticle when zoomed. Every weapon
+// can +zoom, but only those are worth a button. The client knows this one
+// itself, so no stat. An observer holds no weapon; a spectator watching a
+// player sees that player's and may zoom with it.
+bool Touch_ZoomAvailable(void)
+{
+	float mode = autocvar_touch_zoom_visible;
+	if (mode <= 0)
+		return false;
+	if (mode == 1)
+		return true;
+	if (spectatee_status == -1)
+		return false;
+	if (!spectatee_status && STAT(HEALTH) <= 0)
+		return false;
+	Weapon wep = viewmodels[0].switchweapon;
+	return wep != WEP_Null && wep.w_reticle != "";
+}
+
+bool Touch_ZoomHeld(void)
+{
+	return touch_key_zoom;
+}
+
+// 0..1 multiplier for drawing ZOOM; advances the fade, so call it once a frame.
+// It stays while zoomed, so a finger on it can see what it is holding.
+float Touch_ZoomAlpha(void)
+{
+	float dt = bound(0, time - touch_zoom_fade_time, 0.1);
+	touch_zoom_fade_time = time;
+	if (autocvar_touch_zoom_visible <= 0)
+		return touch_zoom_fade = 0;
+	if (Touch_CustomizeActive() || autocvar_touch_debug >= 3)
+		return touch_zoom_fade = 1;
+	return touch_zoom_fade = Touch_FadeStep(touch_zoom_fade, Touch_ZoomAvailable() || touch_key_zoom, dt);
+}
+
+// HOOK is contextual like ZOOM (touch_hook_visible 2): there while the engine
+// says a hook is to hand -- the server's offhand hook, or the Hook weapon with
+// fuel (_cl_touch_hook_avail, touch_hook.c). Never while a mouse aims, like the
+// rest of the hook: it is for touch play only.
+bool Touch_HookAvailable(void)
+{
+	float mode = autocvar_touch_hook_visible;
+	if (mode <= 0 || cvar("vid_touchscreen_mouselook"))
+		return false;
+	if (mode == 1)
+		return true;
+	return cvar("_cl_touch_hook_avail") > 0;
+}
+
+// Held by the finger, or by the engine's fall rescue (_cl_touch_hook_state 2).
+bool Touch_HookHeld(void)
+{
+	return touch_key_hook || cvar("_cl_touch_hook_state") > 0;
+}
+
+float touch_hook_fade;
+float touch_hook_fade_time;
+
+// 0..1 multiplier for drawing HOOK; advances the fade, so call it once a frame.
+float Touch_HookAlpha(void)
+{
+	float dt = bound(0, time - touch_hook_fade_time, 0.1);
+	touch_hook_fade_time = time;
+	if (autocvar_touch_hook_visible <= 0)
+		return touch_hook_fade = 0;
+	if (Touch_CustomizeActive() || autocvar_touch_debug >= 3)
+		return touch_hook_fade = 1;
+	return touch_hook_fade = Touch_FadeStep(touch_hook_fade, Touch_HookAvailable() || Touch_HookHeld(), dt);
+}
+
+// TURN: shown unless switched off, and never while a mouse aims (the mouse
+// turns faster than any button).
+bool Touch_TurnAvailable(void)
+{
+	return autocvar_touch_turn_visible && !cvar("vid_touchscreen_mouselook");
+}
+
+bool Touch_TurnHeld(void)
+{
+	return Touch_RoleOwned(TOUCH_ROLE_TURN);
+}
+
+bool Touch_CrouchHeld(void)
+{
+	return touch_key_crouch;
+}
+
+int Touch_DebugFills(void)
+{
+	return touch_debug_fills;
+}
+
+void Touch_DebugAddFills(int n)
+{
+	touch_debug_fills += n;
+}
+
+int Touch_DebugCmdsPerSec(void)
+{
+	return touch_debug_cmds_per_sec;
+}
+
+string Touch_DebugRoleName(int role)
+{
+	if (role == TOUCH_ROLE_MOVE) return "MOVE";
+	if (role == TOUCH_ROLE_LOOK) return "LOOK";
+	if (role == TOUCH_ROLE_FIRE) return "FIRE";
+	if (role == TOUCH_ROLE_FIRE2) return "FIRE2";
+	if (role == TOUCH_ROLE_JUMP) return "HOP";
+	if (role == TOUCH_ROLE_CROUCH) return "CR";
+	if (role == TOUCH_ROLE_WEAPON) return "WEP";
+	if (role == TOUCH_ROLE_ZOOM) return "ZOOM";
+	if (role == TOUCH_ROLE_HOOK) return "HOOK";
+	if (role == TOUCH_ROLE_NADE) return "NADE";
+	if (role == TOUCH_ROLE_TURN) return "TURN";
+	if (role == TOUCH_ROLE_HOPLOCK) return "KEEP";
+	if (role == TOUCH_ROLE_DODGE) return "DODGE";
+	if (role == TOUCH_ROLE_RELOAD) return "R";
+	if (role == TOUCH_ROLE_CON) return "CON";
+	if (role == TOUCH_ROLE_PAUSE) return "PAUSE";
+	if (role == TOUCH_ROLE_CHAT) return "CHAT";
+	if (role == TOUCH_ROLE_SCORES) return "SCORE";
+	if (role == TOUCH_ROLE_WEPSIZE) return "GRIP";
+	if (role == TOUCH_ROLE_SHEET) return "SHEET";
+	if (role == TOUCH_ROLE_IGNORED) return "IGN";
+	return "-";
+}
+
+int Touch_DebugFingerRole(int i)
+{
+	if (i < 0 || i >= TOUCH_MAX_FINGERS)
+		return TOUCH_ROLE_NONE;
+	if (!touch_finger_used[i])
+		return TOUCH_ROLE_NONE;
+	return touch_finger_role[i];
+}

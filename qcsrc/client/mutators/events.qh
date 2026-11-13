@@ -1,0 +1,281 @@
+#pragma once
+
+#include <common/mutators/base.qh>
+
+// Register all possible hooks here
+
+// To use a hook, first register your mutator using REGISTER_MUTATOR,
+// then create your function using MUTATOR_HOOKFUNCTION
+
+/**
+ * Called when a client command is parsed
+ * NOTE: hooks MUST start with if (MUTATOR_RETURNVALUE) return false;
+ * NOTE: return true if you handled the command, return false to continue handling
+ * NOTE: THESE HOOKS MUST NEVER EVER CALL tokenize()
+ * // example:
+ * MUTATOR_HOOKFUNCTION(foo, CSQC_ConsoleCommand)
+ * {
+ *     if (MUTATOR_RETURNVALUE)
+ *         return false; // command was already handled
+ *     string cmd_name = M_ARGV(0, string);
+ *     int cmd_argc = M_ARGV(1, int);
+ *     string cmd_string = M_ARGV(2, string);
+ *     if (cmd_name == "echocvar" && cmd_argc >= 2)
+ *     {
+ *         print(cvar_string(argv(1)), "\n");
+ *         return true;
+ *     }
+ *     if (cmd_name == "echostring" && cmd_argc >= 2)
+ *     {
+ *         print(substring(cmd_string, argv_start_index(1), argv_end_index(-1) - argv_start_index(1)), "\n");
+ *         return true;
+ *     }
+ *     return false;
+ * }
+ */
+#define params(i, o) \
+	i(string, 0) /* command name */ \
+	i(int,    1) /* argc (also, argv() can be used) */ \
+	i(string, 2) /* whole command, use only if you really have to */ \
+	/**/
+MUTATOR_HOOKABLE(CSQC_ConsoleCommand, params);
+#undef params
+
+/// Called when the crosshair is being updated
+MUTATOR_HOOKABLE(UpdateCrosshair, EV_NO_ARGS);
+
+/// Called when a projectile is linked with CSQC
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(Ent_Projectile, params);
+#undef params
+
+/// Called when a projectile's properties are being modified
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(EditProjectile, params);
+#undef params
+
+/// Called when projectiles are precached
+MUTATOR_HOOKABLE(PrecacheProjectiles, EV_NO_ARGS);
+
+/// Called when updating the attached tags index
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(TagIndex_Update, params);
+#undef params
+
+/// Called when setting the attached tags
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(TagIndex_Apply, params);
+#undef params
+
+/// Called when setting up skeleton bones
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(Skeleton_CheckBones, params);
+#undef params
+
+/// Called when setting up bones from the loaded model
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(Skeleton_CheckModel, params);
+#undef params
+
+/// Called when clearing the global parameters for a model
+MUTATOR_HOOKABLE(ClearModelParams, EV_NO_ARGS);
+
+/// Called when getting the global parameters for a model
+#define params(i, o) \
+	i(string, 0) /* input */ \
+	i(string, 1) /* command */ \
+	/**/
+MUTATOR_HOOKABLE(GetModelParams, params);
+#undef params
+
+/// Called checking if 3rd person mode should be forced on
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(WantEventchase, params);
+#undef params
+
+/// Allow customizing 3rd person mode effect
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	o(vector, 0) /* current_view_origin_override */ \
+	o(vector, 1) /* view_offset_override */ \
+	o(float,  2) /* chase_distance_override */ \
+	/**/
+MUTATOR_HOOKABLE(CustomizeEventchase, params);
+#undef params
+
+#define params(i, o) \
+	i(string, 0) /* announcer string */ \
+	o(string, 0) /* announcer string */ \
+	/**/
+MUTATOR_HOOKABLE(AnnouncerOption, params);
+#undef params
+
+MUTATOR_HOOKABLE(Ent_Init, EV_NO_ARGS);
+
+#define params(i, o) \
+	o(vector, 0) \
+	o(float,  1) \
+	/**/
+MUTATOR_HOOKABLE(HUD_Draw_overlay, params);
+#undef params
+
+/// Return true to hide the damage HUD overlay
+MUTATOR_HOOKABLE(HUD_Damage_show, EV_NO_ARGS);
+
+MUTATOR_HOOKABLE(HUD_Powerups_add, EV_NO_ARGS);
+
+/// Return true to show the physics HUD panel when optional mode is enabled
+MUTATOR_HOOKABLE(HUD_Physics_showoptional, EV_NO_ARGS);
+
+/// Return true to show the strafehud when optional mode is enabled
+MUTATOR_HOOKABLE(HUD_StrafeHUD_showoptional, EV_NO_ARGS);
+
+/// Return true to hide the score HUD panel
+MUTATOR_HOOKABLE(HUD_Score_show, EV_NO_ARGS);
+
+/// Return true to not draw any Vortex beam
+#define params(i, o) \
+	i(vector, 0) /* beam shot origin */ \
+	i(vector, 1) /* beam end position */ \
+	/**/
+MUTATOR_HOOKABLE(Particles_VortexBeam, params);
+#undef params
+
+/// Return true to not draw any impact effect
+#define params(i, o) \
+	i(entity, 0) /* weapon */ \
+	i(entity, 1) /* damage entity */ \
+	/**/
+MUTATOR_HOOKABLE(Weapon_ImpactEffect, params);
+#undef params
+
+/// NOTE: hooks MUST start with if (MUTATOR_RETURNVALUE) return false;
+#define params(i, o) \
+	i(int, 0) /* argc (also, argv() can be used) */ \
+	/**/
+MUTATOR_HOOKABLE(HUD_Command, params);
+#undef params
+
+/// Draw the grapple hook, allows changing hook texture and color
+#define params(i, o) \
+	i(entity, 0) /* hook */ \
+	i(string, 1) /* texture */ \
+	o(string, 1) \
+	i(vector, 2) /* color */ \
+	o(vector, 2) \
+	i(float,  3) /* team */ \
+	/**/
+MUTATOR_HOOKABLE(DrawGrapplingHook, params);
+#undef params
+
+/// Called when an entity is updated (either by SVQC networking or PVS)
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	i(bool,   1) /* is new to client */ \
+	/**/
+MUTATOR_HOOKABLE(Ent_Update, params);
+#undef params
+
+/// Return true to not draw crosshair
+MUTATOR_HOOKABLE(DrawCrosshair, EV_NO_ARGS);
+
+/// Return true to not draw scoreboard
+MUTATOR_HOOKABLE(DrawScoreboard, EV_NO_ARGS);
+
+/// Return true to force showing of the scoreboard
+MUTATOR_HOOKABLE(DrawScoreboard_Force, EV_NO_ARGS);
+
+/// Return true to not draw scoreboard while dead
+MUTATOR_HOOKABLE(DrawDeathScoreboard, EV_NO_ARGS);
+
+/// Return true to not show accuracy stats in the scoreboard
+MUTATOR_HOOKABLE(DrawScoreboardAccuracy, EV_NO_ARGS);
+
+/// Return true to not show item pickup stats in the scoreboard
+MUTATOR_HOOKABLE(DrawScoreboardItemStats, EV_NO_ARGS);
+
+/// Called when drawing info messages, allows adding new info messages. Return true to hide the standard join message
+#define params(i, o) \
+	i(vector, 0) /* pos */ \
+	o(vector, 0) \
+	i(vector, 1) /* mySize */ \
+	i(int,    2) /* img_curr_group */ \
+	o(int,    2) \
+	/**/
+MUTATOR_HOOKABLE(DrawInfoMessages, params);
+#undef params
+
+/// Called when the view model is being animated (setorigin is called after the hook, so you only need to modify origin here if desired)
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	/**/
+MUTATOR_HOOKABLE(DrawViewModel, params);
+#undef params
+
+/// Called when updating the view's liquid contents, return true to disable the standard checks and apply your own
+MUTATOR_HOOKABLE(HUD_Contents, EV_NO_ARGS);
+
+/// Return true to disable player model forcing
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	i(bool,   1) /* is local */ \
+	/**/
+MUTATOR_HOOKABLE(ForcePlayermodels_Skip, params);
+#undef params
+
+/// Return true to disable player color forcing
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	i(bool,   1) /* is local */ \
+	/**/
+MUTATOR_HOOKABLE(ForcePlayercolors_Skip, params);
+#undef params
+
+/// Called when damage info is received on the client, useful for playing explosion effects
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	i(int,    1) /* death type */ \
+	i(vector, 2) /* hit origin */ \
+	/**/
+MUTATOR_HOOKABLE(DamageInfo, params);
+#undef params
+
+/// Return true to not draw zoom reticle
+MUTATOR_HOOKABLE(DrawReticle, EV_NO_ARGS);
+
+/// Return true to show leaderboard rankings, needs title argument set
+#define params(i, o) \
+	i(bool,   0) /* deathscoreboard */ \
+	o(string, 1) /* rankings title */ \
+	/**/
+MUTATOR_HOOKABLE(ShowRankings, params);
+#undef params
+
+/// Called when drawing a player's nameplate, return true to hide it
+#define params(i, o) \
+	i(entity, 0) /* entity id */ \
+	i(float,  1) /* alpha  */ \
+	o(float,  1) \
+	/**/
+MUTATOR_HOOKABLE(ShowNames_Draw, params);
+#undef params
+
+/// Return true to display the race timer HUD panel
+MUTATOR_HOOKABLE(ShowRaceTimer, EV_NO_ARGS);
+
+/// Return true to force team radar to display entities regardless of their team
+MUTATOR_HOOKABLE(TeamRadar_Draw, EV_NO_ARGS);

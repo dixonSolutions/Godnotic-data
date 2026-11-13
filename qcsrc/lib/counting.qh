@@ -1,0 +1,257 @@
+#pragma once
+
+#include "i18n.qh"
+
+// ===============================================
+//  Time processing and counting functions/macros
+// ===============================================
+
+#define count_shells(num) \
+	count_fill(num, \
+	_("ZER^%d shells"), \
+	_("ONE^%d shell"),  \
+	_("TWO^%d shells"), \
+	_("THR^%d shells"), \
+	_("MUL^%d shells"))
+
+#define count_bullets(num) \
+	count_fill(num, \
+	_("ZER^%d bullets"), \
+	_("ONE^%d bullet"),  \
+	_("TWO^%d bullets"), \
+	_("THR^%d bullets"), \
+	_("MUL^%d bullets"))
+
+#define count_rockets(num) \
+	count_fill(num, \
+	_("ZER^%d rockets"), \
+	_("ONE^%d rocket"),  \
+	_("TWO^%d rockets"), \
+	_("THR^%d rockets"), \
+	_("MUL^%d rockets"))
+
+#define count_cells(num) \
+	count_fill(num, \
+	_("ZER^%d cells"), \
+	_("ONE^%d cell"),  \
+	_("TWO^%d cells"), \
+	_("THR^%d cells"), \
+	_("MUL^%d cells"))
+
+
+#define count_votes(num) \
+	count_fill(num, \
+	_("ZER^%d votes"), \
+	_("ONE^%d vote"),  \
+	_("TWO^%d votes"), \
+	_("THR^%d votes"), \
+	_("MUL^%d votes"))
+
+#define count_matches(num) \
+	count_fill(num, \
+	_("ZER^%d matches"), \
+	_("ONE^%d match"),   \
+	_("TWO^%d matches"), \
+	_("THR^%d matches"), \
+	_("MUL^%d matches"))
+
+#define count_points_decs(time, decs) sprintf(CTX(_("DEC^%s points")), ftos_decimals(time, decs))
+#define count_points(num) \
+	count_fill(num, \
+	_("ZER^%d points"), \
+	_("ONE^%d point"),  \
+	_("TWO^%d points"), \
+	_("THR^%d points"), \
+	_("MUL^%d points"))
+
+#define count_results(num) \
+	count_fill(num, \
+	_("ZER^%d results"), \
+	_("ONE^%d result"),  \
+	_("TWO^%d results"), \
+	_("THR^%d results"), \
+	_("MUL^%d results"))
+
+
+#define count_years_decs(time, decs) sprintf(CTX(_("DEC^%s years")), ftos_decimals(time, decs))
+#define count_years(time) \
+	count_fill(time, \
+	_("ZER^%d years"), \
+	_("ONE^%d year"),  \
+	_("TWO^%d years"), \
+	_("THR^%d years"), \
+	_("MUL^%d years"))
+
+#define count_weeks_decs(time, decs) sprintf(CTX(_("DEC^%s weeks")), ftos_decimals(time, decs))
+#define count_weeks(time) \
+	count_fill(time, \
+	_("ZER^%d weeks"), \
+	_("ONE^%d week"),  \
+	_("TWO^%d weeks"), \
+	_("THR^%d weeks"), \
+	_("MUL^%d weeks"))
+
+#define count_days_decs(time, decs) sprintf(CTX(_("DEC^%s days")), ftos_decimals(time, decs))
+#define count_days(time) \
+	count_fill(time, \
+	_("ZER^%d days"), \
+	_("ONE^%d day"),  \
+	_("TWO^%d days"), \
+	_("THR^%d days"), \
+	_("MUL^%d days"))
+
+#define count_hours_decs(time, decs) sprintf(CTX(_("DEC^%s hours")), ftos_decimals(time, decs))
+#define count_hours(time) \
+	count_fill(time, \
+	_("ZER^%d hours"), \
+	_("ONE^%d hour"),  \
+	_("TWO^%d hours"), \
+	_("THR^%d hours"), \
+	_("MUL^%d hours"))
+
+#define count_minutes_decs(time, decs) sprintf(CTX(_("DEC^%s minutes")), ftos_decimals(time, decs))
+#define count_minutes(time) \
+	count_fill(time, \
+	_("ZER^%d minutes"), \
+	_("ONE^%d minute"),  \
+	_("TWO^%d minutes"), \
+	_("THR^%d minutes"), \
+	_("MUL^%d minutes"))
+
+#define count_seconds_decs(time, decs) sprintf(CTX(_("DEC^%s seconds")), ftos_decimals(time, decs))
+#define count_seconds(time) \
+	count_fill(time, \
+	_("ZER^%d seconds"), \
+	_("ONE^%d second"),  \
+	_("TWO^%d seconds"), \
+	_("THR^%d seconds"), \
+	_("MUL^%d seconds"))
+
+// returns 1st, 2nd, 3rd, nth ordinal number from a cardinal number (integer)
+ERASEABLE
+string count_ordinal(int num)
+{
+	// This function is designed primarily for the English language, it's impossible
+	// to accomodate all languages unless we do a specific function for each one...
+	// and since that's not technically feasible/practical, this is all we've got folks.
+
+	int last2digits = num % 100;
+
+	// numbers ending with 11, 12 and 13 don't follow the standard pattern
+	if (last2digits < 4 || last2digits > 20)
+		switch (last2digits % 10)
+		{
+			case 1: return sprintf(_("%dst"), num);
+			case 2: return sprintf(_("%dnd"), num);
+			case 3: return sprintf(_("%drd"), num);
+		}
+
+	return sprintf(_("%dth"), num);
+}
+
+ERASEABLE
+string count_fill(float num, string zero, string one, string two, string three, string multi)
+{
+	// This function is designed primarily for the English language, it's impossible
+	// to accomodate all languages unless we do a specific function for each one...
+	// and since that's not technically feasible/practical, this is all we've got folks.
+
+	// Here you can insert specific strings based on the input number, so you could do
+	// e.g. count_seconds which outputs like this:
+	//   0 seconds
+	//   1 second
+	//   2 seconds
+	//   3 seconds
+	//   etc... minutes, hours, days, etc.
+
+	switch (floor(num))
+	{
+		case 0: return sprintf(CTX(zero), num);
+		case 1:
+			if (num == 1) // EXACTLY value of 1
+				return sprintf(CTX(one), num);
+			else
+				return sprintf(CTX(multi), num);
+		case 2: return sprintf(CTX(two), num);
+		case 3: return sprintf(CTX(three), num);
+		default: return sprintf(CTX(multi), num);
+	}
+	return "";
+}
+
+ERASEABLE
+string process_time(float outputtype, int seconds)
+{
+	int tmp_hours = 0, tmp_minutes = 0, tmp_seconds;
+	int tmp_years = 0, tmp_weeks = 0, tmp_days = 0;
+
+	tmp_seconds = floor(seconds);
+
+	if (tmp_seconds)
+	{
+		tmp_minutes = floor(tmp_seconds / 60);
+
+		if (tmp_minutes)
+		{
+			tmp_seconds -= tmp_minutes * 60;
+			tmp_hours = floor(tmp_minutes / 60);
+
+			if (tmp_hours)
+			{
+				tmp_minutes -= tmp_hours * 60;
+				tmp_days = floor(tmp_hours / 24);
+
+				if (tmp_days)
+				{
+					tmp_hours -= tmp_days * 24;
+					tmp_weeks = floor(tmp_days / 7);
+
+					if (tmp_weeks)
+					{
+						tmp_days -= tmp_weeks * 7;
+						tmp_years = floor(tmp_weeks / 52);
+					}
+				}
+			}
+		}
+	}
+
+	switch (outputtype)
+	{
+		case 1: return sprintf("%02d:%02d:%02d", tmp_hours, tmp_minutes, tmp_seconds);
+		case 2:
+		{
+			string output = "";
+			#define APPEND_TIME(unit) \
+				if (tmp_##unit) \
+					output = strcat(output, ((output != "") ? ", " : ""), count_##unit(tmp_##unit))
+			APPEND_TIME(years);
+			APPEND_TIME(weeks);
+			APPEND_TIME(days);
+			APPEND_TIME(hours);
+			APPEND_TIME(minutes);
+			APPEND_TIME(seconds);
+			#undef APPEND_TIME
+			if (output == "")
+				return count_seconds(0);
+			return output;
+		}
+		case 3:
+		{
+			string output = count_hours(tmp_hours);
+
+			if (tmp_weeks)
+				tmp_days += (tmp_weeks * 7);
+			if (tmp_years)
+				tmp_days += (tmp_years * 365);
+			if (tmp_days)
+				output = sprintf(
+					count_days(tmp_days),
+					((output != "") ? strcat(", ", output) : "")
+				);
+
+			return output;
+		}
+	}
+	return "";
+}
