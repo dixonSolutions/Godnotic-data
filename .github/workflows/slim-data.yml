@@ -1,0 +1,121 @@
+name: Slim data
+
+# Builds the slim pack set the Godnotic clients download and publishes it, as
+# one archive, to this repository's stable "data-slim" release:
+#
+#   Godnotic-data.zip          <- Xonotic/data/<pack>.pk3, stored entries
+#   Godnotic-data.zip.sha256
+#   phone-manifest.json, phone-sizes.md
+#
+# The source is a pinned full data release of this repository (data-<date>),
+# never a moving upstream build, so the same inputs give the same packs. The
+# repack tools live in dixonSolutions/Godnotic (scripts/repack-phone-assets.py,
+# scripts/pack-phone-archive.py; docs/PHONE_ASSETS.md there).
+#
+# Manual only: publishing new data is a decision, not a schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Full data release of this repository to repack
+        type: string
+        default: data-20261107
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-slim
+  cancel-in-progress: false
+
+env:
+  TAG: data-slim
+  ARCHIVE: Godnotic-data.zip
+  ASTCENC_VERSION: 5.7.1
+  ASTCENC_SHA256: f1d576f0801e7701548da78d782f4bf70dfde3673a238d1a2ac0ebd3511b2f37
+
+jobs:
+  build:
+    name: Repack for phones
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Repack tools from Godnotic
+        uses: actions/checkout@v4
+        with:
+          repository: dixonSolutions/Godnotic
+          ref: main
+          sparse-checkout: scripts
+          path: godnotic
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg
+          python -m pip install -q numpy
+          curl -sfL -o astcenc.zip \
+            "https://github.com/ARM-software/astc-encoder/releases/download/$ASTCENC_VERSION/astcenc-$ASTCENC_VERSION-linux-x64.zip"
+          echo "$ASTCENC_SHA256  astcenc.zip" | sha256sum -c -
+          unzip -q -o astcenc.zip -d "$RUNNER_TEMP/astcenc"
+          echo "ASTCENC=$RUNNER_TEMP/astcenc/bin/astcenc-avx2" >> "$GITHUB_ENV"
+          df -h "$RUNNER_TEMP"
+
+      - name: Full packs
+        env:
+          SOURCE_TAG: ${{ inputs.source_tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/dl" "$RUNNER_TEMP/src"
+          gh release download "$SOURCE_TAG" -D "$RUNNER_TEMP/dl" -p '*.zip' -p '*.zip.sha256'
+          (cd "$RUNNER_TEMP/dl" && sha256sum -c ./*.sha256)
+          unzip -q -j "$RUNNER_TEMP"/dl/*.zip 'Xonotic/data/*.pk3' -d "$RUNNER_TEMP/src"
+          rm -rf "$RUNNER_TEMP/dl"
+          ls -l "$RUNNER_TEMP/src"
+
+      - name: Repack
+        run: |
+          # nexcompat is 125 MB of Nexuiz map textures; the browser build leaves
+          # it out for the same reason, and no phone map needs it.
+          packs=()
+          for pack in "$RUNNER_TEMP"/src/*.pk3; do
+            case "$pack" in
+              *nexcompat*) echo "leaving out $(basename "$pack")" ;;
+              *) packs+=("$pack") ;;
+            esac
+          done
+          python godnotic/scripts/repack-phone-assets.py --profile slim -o "$RUNNER_TEMP/out" \
+            --meta source_release="${{ inputs.source_tag }}" \
+            --meta built_from="$(git -C godnotic rev-parse HEAD)" \
+            --meta base_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" \
+            "${packs[@]}"
+          cat "$RUNNER_TEMP/out/phone-sizes.md" >> "$GITHUB_STEP_SUMMARY"
+          ls -l "$RUNNER_TEMP/out"
+
+      - name: One archive to stream
+        run: |
+          python godnotic/scripts/pack-phone-archive.py -o "$RUNNER_TEMP/out/$ARCHIVE" \
+            "$RUNNER_TEMP"/out/*-phone.pk3
+          (cd "$RUNNER_TEMP/out" && sha256sum "$ARCHIVE" > "$ARCHIVE.sha256")
+          cat "$RUNNER_TEMP/out/$ARCHIVE.sha256" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --latest=false --title "Godnotic slim data" \
+              --notes "ASTC/zstd/Opus repack of the Godnotic data, streamed by the Godnotic clients. Made by .github/workflows/slim-data.yml with the tools in dixonSolutions/Godnotic (docs/PHONE_ASSETS.md)."
+          fi
+          # the manifest after its archive, so a reader never sees it first
+          gh release upload "$TAG" "$RUNNER_TEMP/out/$ARCHIVE" "$RUNNER_TEMP/out/$ARCHIVE.sha256" \
+            "$RUNNER_TEMP/out/phone-sizes.md" --clobber
+          gh release upload "$TAG" "$RUNNER_TEMP/out/phone-manifest.json" --clobber
+          new=$(cd "$RUNNER_TEMP/out" && ls)
+          for old in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do
+            echo "$new" | grep -qxF "$old" || gh release delete-asset "$TAG" "$old" --yes
+          done
