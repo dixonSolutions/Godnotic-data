@@ -301,6 +301,13 @@ void UIB_HomeBar(string current)
 	UIB_Close();
 }
 
+// Bots per mode. Duel has two places, so it has its own setting, 0 or 1
+// (touch_lan_bots_duel); every other mode shares touch_lan_bots, which a Duel
+// never changes. The Bots stepper, Home's Singleplayer card and Play all read these.
+string UIB_ModeBotCvar(string mode) { return (mode == "duel") ? "touch_lan_bots_duel" : "touch_lan_bots"; }
+float UIB_ModeBotMax(string mode) { return (mode == "duel") ? 1 : 15; }
+float UIB_ModeBots(string mode) { return bound(0, cvar(UIB_ModeBotCvar(mode)), (mode == "duel") ? 1 : 32); }
+
 // Home: the banner at the top, scaled to the window, the three cards in one row
 // under it, and the bar of Settings, Credits and Quit along the bottom.
 void UIB_BuildHome()
@@ -323,7 +330,7 @@ void UIB_BuildHome()
 	if (map == "") map = "stormkeep";
 	string mode = cvar_string("touch_lan_gametype");
 	if (mode == "") mode = "dm";
-	float bots = cvar("touch_lan_bots");
+	float bots = UIB_ModeBots(mode);   // what Play starts: Duel has one at most
 	if (!uib_camp_loaded)
 		UIB_CampaignLoad();
 	UIB_ServerSummary();
@@ -333,7 +340,7 @@ void UIB_BuildHome()
 		uib_f("maxColumns", 3);
 		UIB_Open("sp", "card");
 			uib_s("title", _("Singleplayer"));
-			uib_s("subtitle", sprintf(_("%s · %s · %d bots"), UIB_MapTitle(map), UIB_ModeName(mode), bots));
+			uib_s("subtitle", sprintf(((bots == 1) ? _("%s · %s · %d bot") : _("%s · %s · %d bots")), UIB_MapTitle(map), UIB_ModeName(mode), bots));
 			uib_s("icon", "singleplayer");
 			uib_s("image", strcat("pk3:maps/", map));
 			uib_s("aspect", "16:9");
@@ -544,11 +551,13 @@ string UIB_MapField(string s, string unset) { return (s == unset) ? "" : s; }
 
 // One picker row from the MapInfo_Map_* globals; state and progress as the
 // engine's "maps" source has them ("ready", or "downloading" with 0..1, -1 queued).
-void UIB_MapRow(string name, string state, float progress)
+// The picker's own mode leads its modes: renderers show the first few as chips, and
+// Duel (implied by DM, late in the list) was cut off its own tiles.
+void UIB_MapRow(string name, string state, float progress, string mode)
 {
 	string title = UIB_MapField(MapInfo_Map_title, "<TITLE>");
-	string modes = "";
-	FOREACH(Gametypes, MapInfo_Map_supportedGametypes & it.gametype_flags, modes = strcat(modes, ((modes == "") ? "" : " "), it.mdl));
+	string modes = mode;
+	FOREACH(Gametypes, MapInfo_Map_supportedGametypes & it.gametype_flags && it.mdl != mode, modes = strcat(modes, ((modes == "") ? "" : " "), it.mdl));
 	uib_row(name, sprintf("{\"name\":%s,\"title\":%s,\"author\":%s,\"description\":%s,\"modes\":%s,\"state\":%s,\"progress\":%s}", uib_qv(name),
 		uib_qv((title != "") ? title : name), uib_qv(UIB_MapField(MapInfo_Map_author, "<AUTHOR>")),
 		uib_qv(UIB_MapField(MapInfo_Map_description, "<DESCRIPTION>")), uib_qv(modes), uib_qv(state), ftos(progress)), strcat("pk3:maps/", name));
@@ -576,7 +585,7 @@ string UIB_MapRows(string mode)
 		string name = MapInfo_BSPName_ByID(i);
 		if (!MapInfo_Get_ByID(i))
 			continue;
-		UIB_MapRow(name, "ready", -1);
+		UIB_MapRow(name, "ready", -1, mode);
 	}
 	// Maps of the split data set still to come (a .mapinfo in the core pack, no .bsp
 	// yet) are not in MapInfo; they show as downloading tiles, like the engine's
@@ -594,7 +603,7 @@ string UIB_MapRows(string mode)
 			if (!(MapInfo_Map_supportedGametypes & gt.gametype_flags) || (MapInfo_Map_flags & MapInfo_ForbiddenFlags())
 				|| (MapInfo_Map_flags & MapInfo_RequiredFlags()) != MapInfo_RequiredFlags())
 				continue;
-			UIB_MapRow(name, "downloading", TouchData_MapProgress(name));
+			UIB_MapRow(name, "downloading", TouchData_MapProgress(name), mode);
 		}
 		if (glob >= 0)
 			search_end(glob);
@@ -703,7 +712,7 @@ void UIB_BuildCreate()
 	UIB_Section("match", _("Match"), false);
 		UIB_Open("form", "form");
 			uib_s("density", "compact");
-			UIB_Stepper("bots", _("Bots"), "cvar:touch_lan_bots", 0, 15, 1, "");
+			UIB_Stepper("bots", _("Bots"), strcat("cvar:", UIB_ModeBotCvar(mode)), 0, UIB_ModeBotMax(mode), 1, "");
 			UIB_Choice("skill", _("Bot skill"), "cvar:skill", "segmented", strcat("[", UIB_Opt("1", _("Easy")), ",", UIB_Opt("4", _("Normal")), ",",
 				strcat(UIB_Opt("7", _("Hard")), ",", UIB_Opt("10", _("Godlike")), "]")), "");
 			UIB_Choice("time", _("Time limit"), "cvar:timelimit_override", "dropdown", strcat("[", UIB_Opt("-1", _("Map default")), ",", UIB_Opt("5", _("5 minutes")), ",",
@@ -861,7 +870,14 @@ void UIB_StartGame(string map, string mode)
 		UIB_RebuildAll();
 		return;
 	}
-	int bots = bound(0, cvar("touch_lan_bots"), 32);
+	int bots = UIB_ModeBots(mode);
+	// Duel has two places: more bots fill both and leave you watching (and a local
+	// game kicks its spectators, so Join ended the match): you and one bot at most
+	if (mode == "duel") bots = min(bots, 1);
+	// not someone else's server: the pause page names this game, not the last one joined
+	cvar_set("_uib_server_name", "");
+	cvar_set("_uib_server_net", "");
+	UIB_VMSet("mp.joining", "");
 	// a local game has the slots its bots need; only a LAN game has more
 	int slots = lan ? bound(2, max(cvar("touch_lan_maxplayers"), bots + 2), 64) : max(2, bots + 1);
 	if (lan)
@@ -1044,6 +1060,38 @@ bool UIB_FindServer(string address)
 	return false;
 }
 
+// How every screen of a join names a server: "<name> (<address>)", the address alone
+// while no name is known. The engine keeps the name (touch_joinname.c: the server list's,
+// else the server's own hostname once it answers), colour codes out, cut to 32 characters.
+// Before the join starts (a locked server's password prompt) the server list's name the
+// join recorded stands in.
+string UIB_CapName(string n)
+{
+	n = strdecolorize(n);
+	return (strlen(n) > 32) ? strcat(substring(n, 0, 31), "…") : n;
+}
+
+string UIB_ServerLabel(string addr)
+{
+	if (addr == "")
+		return "";
+	string n = "";
+	if (addr == cvar_string("_touch_join_address"))
+		n = cvar_string("_touch_join_name");
+	if (n == "" && addr == UIB_VM("mp.joining"))
+		n = UIB_CapName(cvar_string("_uib_server_name"));
+	return (n != "") ? sprintf(_("%s (%s)"), n, addr) : addr;
+}
+
+// the server being joined or played on ("" in a local game)
+string UIB_JoinAddress()
+{
+	if (isserver())
+		return "";
+	string a = cvar_string("_touch_join_address");
+	return (a != "") ? a : UIB_VM("mp.joining");
+}
+
 void UIB_BuildPassword()
 {
 	if (!UIB_Screen("mp.password", _("Password")))
@@ -1052,7 +1100,7 @@ void UIB_BuildPassword()
 	uib_b("dismissable", 1);
 	// a button as well as Enter: the dialog's main action (renderers put it in the action bar)
 	uib_j("primary", UIB_AS("password.join", _("Join"), "play", "primary"));
-	UIB_Text("text", sprintf(_("%s needs a password."), UIB_VM("mp.joining")), "");
+	UIB_Text("text", sprintf(_("%s needs a password."), UIB_ServerLabel(UIB_VM("mp.joining"))), "");
 	UIB_Open("form", "form");
 		uib_j("submit", UIB_AS("password.join", _("Join"), "play", "primary"));
 		UIB_Open("pw", "field");
@@ -1132,7 +1180,12 @@ void UIB_Join(string addr)
 	if (addr == "")
 		return;
 	UIB_VMSet("mp.joining", addr);
-	if (UIB_FindServer(addr) && uib_wcell(0, "lock") == "1")
+	// what the pause page calls this match: the server's name from the list, and
+	// whether it is on this network (an address typed or linked has neither)
+	bool known = UIB_FindServer(addr);
+	cvar_set("_uib_server_name", known ? strdecolorize(uib_wcell(0, "name")) : "");
+	cvar_set("_uib_server_net", known ? uib_wcell(0, "net") : "");
+	if (known && uib_wcell(0, "lock") == "1")
 	{
 		cvar_set("_touch_lan_haspw_query", addr);
 		if (!cvar("_touch_lan_haspw"))
@@ -1181,6 +1234,18 @@ void UIB_HostAddressesFree(int n)
 	}
 }
 
+// "lan", "vpn" or "internet" for an IPv4 address, as the server list's net cell
+// (touch_uib_src.c server_net); "" for anything else
+string UIB_AddrNet(string addr)
+{
+	if (tokenizebyseparator(addr, ".") < 4)
+		return "";
+	float a = stof(argv(0)), b = stof(argv(1));
+	if (a == 100 && b >= 64 && b <= 127) return "vpn";
+	if (a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168) || a == 127 || (a == 169 && b == 254)) return "lan";
+	return "internet";
+}
+
 bool UIB_HostLocked()
 {
 	return cvar("touch_lan_locked") || cvar("touch_lan_host_password_set");
@@ -1227,13 +1292,31 @@ void UIB_BuildPause()
 				pmode = campaign_gametype[uib_camp_index];
 			}
 			uib_s("title", UIB_MapTitle(pm));
-			uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode), hosting ? _("your LAN game") : _("your local game")));
 			uib_s("image", strcat("pk3:maps/", pm));
+			if (hosting)
+			{
+				// where others join, and a tap gives the addresses, the lock and who is in
+				int na = UIB_HostAddresses();
+				uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode),
+					na ? sprintf(_("your LAN game at %s"), uib_ids[8]) : _("your LAN game")));
+				UIB_HostAddressesFree(na);
+				uib_j("primary", UIB_A("host.popup", _("Addresses"), "host"));
+			}
+			else
+				uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode), _("your local game")));
 		}
 		else
 		{
-			uib_s("title", (cvar_string("_uib_server_name") != "") ? cvar_string("_uib_server_name") : _("Match"));
-			uib_s("subtitle", _("Online game"));
+			// someone else's game, named as the join named it: "<name> (<address>)", the
+			// address alone while its name is unknown; and whether it is on this network.
+			// Nothing to open: the card has no action.
+			string saddr = UIB_JoinAddress();
+			string snet = (saddr == UIB_VM("mp.joining")) ? cvar_string("_uib_server_net") : "";
+			if (snet == "") snet = UIB_AddrNet(saddr);
+			string kind = (snet == "lan" || snet == "vpn") ? _("LAN game") : _("Online game");
+			uib_s("title", (saddr != "") ? UIB_ServerLabel(saddr) : _("Match"));
+			uib_s("subtitle", kind);
+			uib_s("icon", (snet == "lan" || snet == "vpn") ? "lan" : "server");
 		}
 		uib_s("aspect", "21:9");
 	UIB_Close();
@@ -1410,7 +1493,8 @@ void UIB_BuildLoading()
 	uib_s("background", "asset:loading");
 	UIB_Open("status", "status");
 		uib_s("icon", state == "downloading" ? "download" : "server");
-		uib_s("title", (cvar_string("_uib_server_name") != "") ? sprintf(_("Joining %s"), cvar_string("_uib_server_name")) : _("Joining"));
+		string who = UIB_ServerLabel(UIB_JoinAddress());
+		uib_s("title", (who != "") ? sprintf(_("Joining %s"), who) : _("Joining"));
 		// one card: the step with its size and speed, one bar, one Cancel (a
 		// second "progress" node repeated the step, the bar and Cancel below it)
 		uib_s("body", (detail != "") ? strcat(stage, " · ", detail) : stage);
@@ -1668,8 +1752,19 @@ void UIB_Build(string id)
 
 // ---------------------------------------------------------------- context: menu, game, loading
 
+// The stock menu works gamestatus out in m_draw, which never runs while a native
+// front end hides the menu: there it kept whatever the menu last saw (nothing, or
+// the match before), and the pause page called a local game "Online game".
+void UIB_GameStatus()
+{
+	gamestatus &= ~(GAME_ISSERVER | GAME_CONNECTED);
+	if (isserver()) gamestatus |= GAME_ISSERVER;
+	if (clientstate() == CS_CONNECTED || isdemo()) gamestatus |= GAME_CONNECTED;
+}
+
 void UIB_Context()
 {
+	UIB_GameStatus();
 	tokenize_console(uib_loadinfo());
 	string st = argv(0);
 	string ctx = "menu";
@@ -1716,6 +1811,8 @@ void UIB_Init()
 	uib_inited = true;
 	uib_reset();
 	registercvar("_uib_server_name", "", 0);
+	registercvar("_uib_server_net", "", 0);
+	registercvar("touch_lan_bots_duel", "1", 1);   // Duel's own Bots (0 or 1); touch_lan_bots stays every other mode's
 	registercvar("_uib_debug_open", "", 0);
 	registercvar("_uib_debug_toast", "", 0);
 	registercvar("_uib_debug_servers", "", 0);
@@ -1975,6 +2072,7 @@ float UIB_Event(string ev, string node, string arg, string json)
 		return 0;
 	if (!uib_inited)
 		UIB_Init();
+	UIB_GameStatus();
 	switch (ev)
 	{
 		case "attach": UIB_RebuildAll(); return 1;
