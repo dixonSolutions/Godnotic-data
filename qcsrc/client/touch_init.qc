@@ -53,7 +53,7 @@ void Touch_DefineCvars(void)
 	// which is exactly the misalignment §1 of the redesign doc complains about.
 	Touch_RegisterCvar("touch_move_x", "0.170");
 	Touch_RegisterCvar("touch_move_y", "0.680");
-	Touch_RegisterCvar("touch_move_size", "0.300"); // the ring is the thumb's travel; never under 128 dp across (Touch_StickRadius)
+	Touch_RegisterCvar("touch_move_size", "0.400"); // the ring is the thumb's travel; never under 128 dp across (Touch_StickRadius)
 	Touch_RegisterCvar("touch_move_visible", "1");
 	Touch_RegisterCvar("touch_fire_x", "0.855");
 	Touch_RegisterCvar("touch_fire_y", "0.680");
@@ -271,10 +271,10 @@ void Touch_DefineCvars(void)
 	Touch_RegisterCvar("touch_look_owns_view", "1");
 	Touch_RegisterCvar("touch_look_glide", "0");
 	Touch_RegisterCvar("touch_stick_deadzone", "0.12");
-	// The stick floats to the thumb, follows it past the rim, and moves by
-	// angle and deflection (full speed from touch_stick_run outwards).
-	Touch_RegisterCvar("touch_stick_float", "1");
-	Touch_RegisterCvar("touch_stick_follow", "1");
+	// The stick stays fixed; these retained legacy cvars no longer affect it.
+	// Movement still reads angle and deflection (full speed from touch_stick_run outwards).
+	Touch_RegisterCvar("touch_stick_float", "0"); // legacy setting; the CSQC stick is always fixed
+	Touch_RegisterCvar("touch_stick_follow", "0"); // legacy setting; the CSQC stick never follows the thumb
 	Touch_RegisterCvar("touch_stick_analog", "1");
 	Touch_RegisterCvar("touch_stick_run", "0.6");
 	Touch_RegisterCvar("touch_stick_range", "1.0");
@@ -433,6 +433,16 @@ void Touch_MigrateLayout(void)
 		if (fabs(cvar("touch_stick_deadzone") - 0.18) < 0.002) cvar_set("touch_stick_deadzone", "0.12");
 		if (fabs(cvar("touch_look_fcmin") - 3.0) < 0.01) cvar_set("touch_look_fcmin", "4.0");
 		if (fabs(cvar("touch_look_beta") - 0.03) < 0.001) cvar_set("touch_look_beta", "0.05");
+		saved = 8;
+	}
+
+	if (saved == 8)
+	{
+		print("Touch: layout 8 -> 9: fixed stick, 0.400 size.\n");
+		Touch_SaveLayoutFile("touch.layout.bak");
+		if (fabs(cvar("touch_move_size") - 0.300) < 0.002) cvar_set("touch_move_size", "0.400");
+		cvar_set("touch_stick_float", "0");
+		cvar_set("touch_stick_follow", "0");
 		cvar_set("touch_layout_version", ftos(TOUCH_LAYOUT_VERSION));
 		localcmd("touch_save\n");
 		return;

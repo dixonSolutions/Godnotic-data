@@ -45,8 +45,6 @@ void GodnoticTouchControlsTab_fill(entity me)
 		me.TD(me, 1, 1.2, e = makeXonoticTextLabel(0, _("Dead zone:")));
 		me.TD(me, 1, 1.6, e = makeXonoticSlider_T(0, 0.35, 0.01, "touch_stick_deadzone", _("How far the thumb moves before you do")));
 	me.TR(me);
-		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "touch_stick_float", _("Stick appears under your thumb"),
-			_("The stick starts wherever your left thumb lands and follows it. Off: it stays where it is drawn")));
 		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "touch_stick_analog", _("Move at any angle"),
 			_("Off: eight directions, like keys")));
 

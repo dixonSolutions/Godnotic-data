@@ -25,8 +25,6 @@ void UIB_SecTouchControls()
 		UIB_Close();
 		UIB_Section("stick", _("Move stick"), false);
 			UIB_Slider("sticksize", _("Size"), "cvar:touch_move_size", 0.2, 0.45, 0.01, "x", "");
-			UIB_Switch("float", _("Appears under your thumb"), "cvar:touch_stick_float",
-				_("The stick starts wherever your left thumb lands and follows it; off, it stays where it is drawn"));
 			UIB_Slider("deadzone", _("Dead zone"), "cvar:touch_stick_deadzone", 0, 0.35, 0.01, "percent",
 				_("How far the thumb moves before you do"));
 			UIB_Switch("analog", _("Move at any angle"), "cvar:touch_stick_analog",

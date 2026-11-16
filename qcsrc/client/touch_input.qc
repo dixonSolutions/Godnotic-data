@@ -38,8 +38,7 @@ bool touch_finger_live[TOUCH_MAX_FINGERS];
 bool touch_finger_draglook[TOUCH_MAX_FINGERS];
 
 vector touch_move_offset;   // the knob, -1..1, for drawing
-// The stick (engine/darkplaces/touch_feel.h TouchStick_*): its floating
-// centre while a thumb holds it, and the analog move last handed to the
+// The stick's fixed centre while a thumb holds it, and the analog move last handed to the
 // engine (touch_move).
 vector touch_stick_center;
 bool touch_stick_held;
@@ -62,24 +61,16 @@ vector Touch_StickCenter(void)
 	return Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
 }
 
-// The thumb landed: the centre goes under it, kept far enough from the edges
-// to push every way (touch_stick_float 0: the drawn place).
+// The thumb landed: its centre stays at the authored control position.
 void Touch_StickLand(vector p)
 {
 	touch_stick_held = true;
-	if (!cvar("touch_stick_float"))
-	{
-		touch_stick_center = Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
-		return;
-	}
-	vector ui = Touch_UISize();
-	float pad = Touch_StickRadius() * 0.55;
-	touch_stick_center = bound(pad, p.x, ui.x - pad) * eX + bound(pad, p.y, ui.y - pad) * eY;
+	touch_stick_center = Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
 }
 
 // The move for a thumb at p: length 0..1 (x right, y down), nothing inside
 // the dead zone, full speed from touch_stick_run outwards. A thumb past the
-// rim drags the centre along (touch_stick_follow).
+// rim clamps the knob while the centre stays fixed.
 vector Touch_StickRead(vector p)
 {
 	float r = max(1, Touch_StickRadius() * max(0.1, autocvar_touch_stick_range));
@@ -88,8 +79,6 @@ vector Touch_StickRead(vector p)
 	float mag = vlen(off);
 	if (mag > r)
 	{
-		if (cvar("touch_stick_follow") && cvar("touch_stick_float"))
-			touch_stick_center += off * (1 - r / mag);
 		off = off * (r / mag);
 		mag = r;
 	}
