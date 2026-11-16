@@ -68,6 +68,9 @@ void GodnoticTouchControlsTab_fill(entity me)
 			_("On devices whose app can vibrate")));
 			setDependent(e, "_touch_haptics_available", 1, 1);
 	me.TR(me);
+		me.TD(me, 1, me.columns, e = makeXonoticCheckBox_T(0, "touch_specbar_visible", _("Spectator bar (FOLLOW / NEXT)"),
+			_("Off: no FOLLOW control on screen. Turn it on to follow players; MENU still joins and spectates")));
+	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticTextLabel(0, _("HOP keeps jumping while held: that is how you gain speed. Its modes are on the Controls tab.")));
 
 	me.TR(me);

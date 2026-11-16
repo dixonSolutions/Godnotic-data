@@ -36,6 +36,11 @@ int Touch_Spec_State(void)
 	}
 }
 
+bool Touch_Spec_BarShown(int st)
+{
+	return st != TOUCH_SPEC_NONE && cvar_or("touch_specbar_visible", TOUCH_SPEC_BAR_DEFAULT) != 0;
+}
+
 // Free-flying: the stick, UP and DOWN fly the camera.
 bool Touch_Spec_Flying(int st)
 {
@@ -120,9 +125,10 @@ int Touch_Spec_AssignRole(vector p)
 		return TOUCH_ROLE_NONE;
 	if (Touch_InEdgeDeadzone(p))
 		return TOUCH_ROLE_IGNORED;
-	for (int part = 0; part < TOUCH_SPEC_BAR_PARTS; ++part)
-		if (Touch_HitRectPx(p, Touch_Spec_BarCenter(part), Touch_Spec_BarHalf(part), 1.1))
-			return Touch_Spec_ActionRole(Touch_Spec_BarAction(st, part));
+	if (Touch_Spec_BarShown(st))
+		for (int part = 0; part < TOUCH_SPEC_BAR_PARTS; ++part)
+			if (Touch_HitRectPx(p, Touch_Spec_BarCenter(part), Touch_Spec_BarHalf(part), 1.1))
+				return Touch_Spec_ActionRole(Touch_Spec_BarAction(st, part));
 	if (Touch_Spec_Flying(st))
 	{
 		float r = Touch_Spec_FlyRadius() * 1.05;
@@ -140,6 +146,10 @@ int Touch_Spec_AssignRole(vector p)
 
 bool Touch_Spec_FingerFrame(int role, bool first)
 {
+	// a bar turned off under a held finger stops acting at once
+	if (!Touch_Spec_BarShown(Touch_Spec_State())
+		&& (role == TOUCH_ROLE_SPEC_ATTACK || role == TOUCH_ROLE_SPEC_PREV || role == TOUCH_ROLE_SPEC_FREE))
+		return false;
 	if (role == TOUCH_ROLE_SPEC_ATTACK)
 		touch_spec_attack = true;
 	else if (role == TOUCH_ROLE_SPEC_FREE)
@@ -200,7 +210,7 @@ bool Touch_Spec_DrawOverlay(float alpha)
 		Touch_Widget_Button(Touch_Spec_FlyCenter(true), r, "UP", touch_spec_key_up, alpha * 0.9, TOUCH_C_ACCENT);
 		Touch_Widget_Button(Touch_Spec_FlyCenter(false), r, "DOWN", touch_spec_key_down, alpha * 0.9, TOUCH_C_ACCENT);
 	}
-	for (int part = 0; part < TOUCH_SPEC_BAR_PARTS; ++part)
+	for (int part = 0; Touch_Spec_BarShown(st) && part < TOUCH_SPEC_BAR_PARTS; ++part)
 	{
 		string label = Touch_Spec_BarLabel(st, part);
 		if (label == "")
@@ -211,7 +221,7 @@ bool Touch_Spec_DrawOverlay(float alpha)
 			(act == TOUCH_SPEC_ACT_NONE ? alpha * 0.6 : alpha), TOUCH_C_ACCENT);
 	}
 	// who is being watched, over the bar
-	string target = Touch_ModeTarget();
+	string target = Touch_Spec_BarShown(st) ? Touch_ModeTarget() : "";
 	if (target != "")
 	{
 		vector c = Touch_Spec_BarCenter(TOUCH_SPEC_BAR_MAIN);
@@ -233,14 +243,17 @@ string Touch_Spec_CommandLabel(string command)
 		return "";
 	if (command == "+jump")
 		return (st == TOUCH_SPEC_OBSERVING || st == TOUCH_SPEC_FOLLOWING) ? "MENU" : "";
-	if (command == "+fire" || command == "+attack")
-		return Touch_Spec_Flying(st) ? "FOLLOW" : ">";
-	// flying, next / previous weapon change the speed: no button for that
-	if (command == "weapnext")
-		return Touch_Spec_Flying(st) ? "" : ">";
-	if (command == "weapprev")
-		return Touch_Spec_Flying(st) ? "" : "<";
-	if (command == "+fire2")
-		return st == TOUCH_SPEC_FOLLOWING ? "FREE" : "";
+	if (Touch_Spec_BarShown(st))
+	{
+		if (command == "+fire" || command == "+attack")
+			return Touch_Spec_Flying(st) ? "FOLLOW" : ">";
+		// flying, next / previous weapon change the speed: no button for that
+		if (command == "weapnext")
+			return Touch_Spec_Flying(st) ? "" : ">";
+		if (command == "weapprev")
+			return Touch_Spec_Flying(st) ? "" : "<";
+		if (command == "+fire2")
+			return st == TOUCH_SPEC_FOLLOWING ? "FREE" : "";
+	}
 	return "";
 }

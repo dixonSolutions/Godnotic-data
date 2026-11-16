@@ -22,6 +22,11 @@ const int TOUCH_SPEC_ACT_NEXT = 2;
 const int TOUCH_SPEC_ACT_PREV = 3;
 const int TOUCH_SPEC_ACT_FREE = 4;
 
+// The bar is off by default on a touch screen (touch_specbar_visible):
+// following is a setting in Touch controls, reachable from MENU, not a control
+// in the way while the player watches.
+const int TOUCH_SPEC_BAR_DEFAULT = 0;
+
 // Spectator roles, held by a finger like the play roles.
 const int TOUCH_ROLE_SPEC_ATTACK = 300; // FOLLOW / NEXT: +attack while held
 const int TOUCH_ROLE_SPEC_PREV = 301;   // weapprev on the press
@@ -30,6 +35,9 @@ const int TOUCH_ROLE_SPEC_UP = 303;     // +moveup while held
 const int TOUCH_ROLE_SPEC_DOWN = 304;   // +movedown while held
 
 int Touch_Spec_State(void);
+// True when the spectator bar is on (touch_specbar_visible) and there is a
+// spectator state to use it in.
+bool Touch_Spec_BarShown(int st);
 // The finger's role while spectating, TOUCH_ROLE_NONE when not spectating
 // (the play roles apply).
 int Touch_Spec_AssignRole(vector p);

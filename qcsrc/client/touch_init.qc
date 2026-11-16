@@ -189,6 +189,10 @@ void Touch_DefineCvars(void)
 	Touch_RegisterCvar("touch_specbar_x", "0.815");
 	Touch_RegisterCvar("touch_specbar_y", "0.885");
 	Touch_RegisterCvar("touch_specbar_size", "0.085");
+	// The bar itself (previous | follow or free | next): off by default, so
+	// the FOLLOW control is not in the way until the player turns it on in
+	// Touch controls. Joining and spectating stay reachable from MENU.
+	Touch_RegisterCvar("touch_specbar_visible", "0");
 	// "Move to spectators" as a HUD control: off, the MENU sheet has it; the
 	// layout editor places it once it is on.
 	Touch_RegisterCvar("touch_tospec_x", "0.075");
@@ -251,12 +255,12 @@ void Touch_DefineCvars(void)
 	// Look acceleration (touch_feel.qh): extra gain for a fast swipe, between
 	// the two finger speeds in dp/s. 0 turns it off.
 	Touch_RegisterCvar("touch_look_accel", "0.8");
-	Touch_RegisterCvar("touch_look_accel_lo", "150");
-	Touch_RegisterCvar("touch_look_accel_hi", "900");
+	Touch_RegisterCvar("touch_look_accel_lo", "200");
+	Touch_RegisterCvar("touch_look_accel_hi", "800");
 	Touch_RegisterCvar("touch_sens_y_mult", "0.85");
 	Touch_RegisterCvar("touch_invert_y", "0");
 	Touch_RegisterCvar("touch_look_smoothing", "1");
-	Touch_RegisterCvar("touch_look_deadzone_px", "4");
+	Touch_RegisterCvar("touch_look_deadzone_px", "8");
 	// 1 euro filter: adaptive cutoff, so slow thumb movement is de-jittered and
 	// fast movement stays lag-free. fcmin governs slow-speed jitter in Hz, beta
 	// governs high-speed lag. 2 restores the old fixed exponential smoother.
@@ -270,7 +274,7 @@ void Touch_DefineCvars(void)
 	Touch_RegisterCvar("touch_look_max_deg_per_s", "900");
 	Touch_RegisterCvar("touch_look_owns_view", "1");
 	Touch_RegisterCvar("touch_look_glide", "0");
-	Touch_RegisterCvar("touch_stick_deadzone", "0.12");
+	Touch_RegisterCvar("touch_stick_deadzone", "0.14");
 	// The stick stays fixed; these retained legacy cvars no longer affect it.
 	// Movement still reads angle and deflection (full speed from touch_stick_run outwards).
 	Touch_RegisterCvar("touch_stick_float", "0"); // legacy setting; the CSQC stick is always fixed
@@ -377,7 +381,7 @@ const string TOUCH_MIGRATE_KEEP =
 	"touch_fire_drag_look "
 	"touch_gyro_enabled touch_gyro_sens touch_gyro_ads_only touch_finger_grace_ms "
 	"touch_weapon_slot1 touch_weapon_slot2 touch_weapon_slot3 "
-	"touch_opacity touch_glass_hollow "
+	"touch_opacity touch_glass_hollow touch_specbar_visible "
 	"touch_setup_done touch_profile_done touch_update_auto";
 
 void Touch_MigrateLayout(void)
