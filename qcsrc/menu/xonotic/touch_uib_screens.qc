@@ -893,8 +893,8 @@ void UIB_StartGame(string map, string mode)
 		}
 	}
 	localcmd("\ndisconnect; wait; g_campaign 0\n");
-	// a local game drops its player straight in; a hosted one lets people watch
-	localcmd(lan ? "sv_spectate 1\n" : "sv_spectate 0\n");
+	// Let the player choose Join or Spectate through the shared join dialog.
+	localcmd("sv_spectate 1\n");
 	// ... and a game started here needs no "Welcome, Join or Spectate?" dialog
 	// (the client QuakeC asks for it only while the menu says it has one)
 	cvar_set("_menu_welcome_dialog_available", "0");
@@ -1333,16 +1333,6 @@ void UIB_BuildPause()
 			UIB_Button("spectate", _("Spectate"), ((cvar("_touch_act_spectate") == 3)
 				? UIB_AC("spectate", _("Spectate"), "esp", "secondary", _("Spectate? You give up this round or what you carry."), _("Spectate"), false)
 				: UIB_A("spectate", _("Spectate"), "esp")), "secondary");
-		// The spectator bar is off by default (touch_specbar_visible): following
-		// stays here, in MENU, whatever the bar setting says.
-		if (cvar("_touch_act_follow"))
-			UIB_Button("follow", _("Follow player"), UIB_A("follow", _("Follow player"), "player"), "secondary");
-		if (cvar("_touch_act_prev"))
-			UIB_Button("prev", _("Previous player"), UIB_A("prev", _("Previous player"), "chevron"), "secondary");
-		if (cvar("_touch_act_next"))
-			UIB_Button("next", _("Next player"), UIB_A("next", _("Next player"), "chevron"), "secondary");
-		if (cvar("_touch_act_free"))
-			UIB_Button("free", _("Free-fly"), UIB_A("free", _("Free-fly"), "esp"), "secondary");
 		UIB_Open("disconnect", "button");
 			// the host leaving ends a LAN game for everyone in it
 			uib_s("label", hosting ? _("End the game") : _("Leave match"));

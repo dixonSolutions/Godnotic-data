@@ -51,3 +51,5 @@ bool Touch_Spec_DrawOverlay(float alpha);
 void Touch_Spec_Release(void);
 // The spectator control a prompt's command is on, "" if none (Touch_CommandLabel).
 string Touch_Spec_CommandLabel(string command);
+string Touch_Spec_ObserverHint(string hint, int status, int choice);
+string Touch_Spec_TeamHint(string hint, string color);

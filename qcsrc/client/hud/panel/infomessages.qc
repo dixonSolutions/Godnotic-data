@@ -130,6 +130,7 @@ void HUD_InfoMessages(bool should_draw)
 						s = sprintf(_("^1Press ^3%s^1 for gametype info"), getcommandkey(_("server info"), "+show_info"));
 						break;
 				}
+				s = Touch_Spec_ObserverHint(s, spectatee_status, img_cur_msg[img_curr_group] % 3); // Touch:
 				InfoMessage(s);
 			}
 
@@ -224,6 +225,7 @@ void HUD_InfoMessages(bool should_draw)
 				entity tm = GetTeam(myteam, false);
 				if (tm && tm.team != NUM_SPECTATOR && tm.team_size == ts_max)
 					s = sprintf(CTX(_("UNBALTEAMS^%s Press ^3%s%s to adjust")), s, getcommandkey(_("team selection"), "team_selection_show"), blinkcolor);
+				s = Touch_Spec_TeamHint(s, blinkcolor); // Touch:
 				fontsize *= 1.125; // perfect float
 				draw_beginBoldFont();
 				InfoMessage(s);

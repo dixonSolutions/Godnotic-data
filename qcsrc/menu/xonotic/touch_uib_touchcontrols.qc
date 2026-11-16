@@ -41,8 +41,6 @@ void UIB_SecTouchControls()
 				_("Holding HOP keeps jumping, which is how you gain speed"));
 			UIB_Switch("assist", _("Aim assist"), "cvar:cl_touch_aimassist",
 				_("In matches on this device, and on servers that allow it"));
-			UIB_Switch("specbar", _("Spectator bar (FOLLOW / NEXT)"), "cvar:touch_specbar_visible",
-				_("Off: no FOLLOW control on screen. Turn it on to follow players; MENU still joins and spectates"));
 			if (cvar("_touch_haptics_available"))
 				UIB_Switch("haptics", _("Vibrate on button presses"), "cvar:touch_haptics", "");
 		UIB_Close();

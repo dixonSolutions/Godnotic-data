@@ -344,11 +344,13 @@ void UIB_SecPlayer()
 	{
 	UIB_Open("name", "field");
 		uib_s("label", _("Name"));
-		uib_s("bind", "cvar:_cl_name");
+		uib_s("bind", "vm:player.name");
+		uib_s("value", cvar_string("_cl_name"));
 		uib_s("kind", "name");
 		uib_f("maxLength", 32);
 		UIB_Apply("reconnect");
 	UIB_Close();
+	UIB_Button("model", _("Player model"), UIB_A("settings.model", _("Player model"), "player"), "secondary");
 	}
 	UIB_Close();
 	if (UIB_SubTab("colours", _("Colours")))
@@ -1047,6 +1049,10 @@ bool UIB_SettingsValue(string node, string value)
 	string bind = uib_get(node, "bind");
 	switch (bind)
 	{
+		case "vm:player.name":
+			cvar_set("_cl_name", value);
+			localcmd("\nname \"$_cl_name\"\nsaveconfig\n");
+			return true;
 		case "vm:player.shirt":
 		case "vm:player.pants":
 		{
@@ -1055,6 +1061,7 @@ bool UIB_SettingsValue(string node, string value)
 			if (bind == "vm:player.shirt") shirt = UIB_ColourIndex(value);
 			else pants = UIB_ColourIndex(value);
 			cvar_set("_cl_color", ftos(shirt * 16 + pants));
+			localcmd("\ncolor -1 -1\nsaveconfig\n");
 			UIB_RebuildAll();
 			return true;
 		}

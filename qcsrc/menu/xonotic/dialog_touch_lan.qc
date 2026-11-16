@@ -189,6 +189,7 @@ void TouchLan_Start(entity btn, entity me)
 	// The bots take slots too: leave at least one for another player.
 	int slots = bound(2, max(cvar("touch_lan_maxplayers"), bots + 2), 64);
 	localcmd("\ndisconnect; wait; g_campaign 0\n");
+	localcmd("sv_spectate 1\n");
 	localcmd(sprintf("maxplayers %d\n", slots));
 	localcmd(sprintf("port %d\n", port));
 	// sv_public 0: answers the LAN search (getinfo/getstatus) and registers
