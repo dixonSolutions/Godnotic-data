@@ -121,8 +121,8 @@ void XonoticMobileControlsTab_fill(entity me)
 {
 	entity e;
 
-	// Dynamic shows the on-screen controls on a touchscreen with no physical
-	// keyboard, from what the system lists (vid_touchdetect.c); input never
+	// Dynamic shows controls on a touchscreen unless both a keyboard and mouse
+	// are listed (vid_touchdetect.c); input never
 	// switches them. Touch and the mouse work in every mode -- the mode only
 	// decides whether the controls are drawn. Ctrl+Alt+1 / Ctrl+Alt+2
 	// override any of them until the game restarts.
@@ -130,20 +130,23 @@ void XonoticMobileControlsTab_fill(entity me)
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("Input mode")));
 	me.TR(me);
 		me.TD(me, 1, 2, e = makeXonoticRadioButton_T(1, "vid_touchscreen_mode", "1", _("Dynamic"),
-			_("Show the on-screen controls on a touchscreen, and hide them while a keyboard is attached. Touch and the mouse keep working either way")));
+			_("Show the on-screen controls on a touchscreen unless both a keyboard and mouse are attached")));
 		me.TD(me, 1, 2, e = makeXonoticRadioButton_T(1, "vid_touchscreen_mode", "2", _("Touch"),
 			_("Always show the on-screen touch controls, with no detection")));
 		me.TD(me, 1, 2, e = makeXonoticRadioButton_T(1, "vid_touchscreen_mode", "0", _("Keyboard & mouse"),
 			_("Never show the on-screen touch controls. Fingers still press menus and turn the view")));
 	me.TR(me);
+		me.TD(me, 1, 2, e = makeXonoticRadioButton_T(1, "vid_touchscreen_mode", "3", _("Dynamic: keyboard hides"),
+			_("Show controls on a touchscreen only when no keyboard is attached")));
+	me.TR(me);
 		me.TD(me, 1, 2, e = makeXonoticCheckBox_T(0, "vid_touchscreen_live", _("Switch mid-game"),
-			_("Dynamic: show or hide the controls when a keyboard is plugged in or taken away. Off: decide once at launch and keep it until the game restarts")));
+			_("Dynamic: show or hide the controls when input devices are connected or removed. Off: decide once at launch and keep it until the game restarts")));
 			setDependent(e, "vid_touchscreen_mode", 1, 1);
 		me.TD(me, 1, 2, e = makeXonoticCheckBox_T(0, "vid_touchscreen_notify", _("Announce switches"),
 			_("Show a message when the controls switch by themselves. Off: switch silently. Ctrl+Alt+1 and Ctrl+Alt+2 always say what they did")));
 			setDependent(e, "vid_touchscreen_mode", 1, 1);
 		me.TD(me, 1, 2, e = makeXonoticCheckBox_T(0, "vid_touchscreen_touchonly", _("Touch-only devices"),
-			_("Dynamic: hide the controls while a physical keyboard is attached. Off: show them on any touchscreen, keyboard or not")));
+			_("Dynamic: hide controls when both keyboard and mouse are attached. Off: show them on any touchscreen")));
 			setDependent(e, "vid_touchscreen_mode", 1, 1);
 	me.TR(me);
 		me.TD(me, 1, 4, e = makeXonoticTextLabel(0, _("Ctrl+Alt+1: switch and lock    Ctrl+Alt+2: lock / unlock")));
