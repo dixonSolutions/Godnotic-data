@@ -3185,6 +3185,17 @@ bool RB_TestPointer()
 	return true;
 }
 
+// The same position drives the puck and its hit tests.
+vector RB_PointerPos()
+{
+	return rb_mouse;
+}
+
+bool RB_PointerShown(float pointer_mouse)
+{
+	return pointer_mouse != 0;
+}
+
 bool TouchUIB_Draw(float alpha)
 {
 	if (!UIB_EngineHasBridge())
@@ -3314,10 +3325,10 @@ bool TouchUIB_Draw(float alpha)
 		RB_Text('20 100 0', gs, 22, RB_TEXT, 1);
 		drawfont = FONT_USER;
 	}
-	if (!rb_touch && cvar("menu_mouse_absolute") && rb_mouse != '0 0 0')
+	if (RB_PointerShown(cvar("vid_pointer_mouse")) && cvar("menu_mouse_absolute") && RB_PointerPos() != '0 0 0')
 	{
-		RB_RRect(rb_mouse - eX * D(6) - eY * D(6), eX * D(12) + eY * D(12), D(6), RB_EMBER, 0.95 * alpha);
-		RB_RRect(rb_mouse - eX * D(3) - eY * D(3), eX * D(6) + eY * D(6), D(3), RB_BG, alpha);
+		RB_RRect(RB_PointerPos() - eX * D(6) - eY * D(6), eX * D(12) + eY * D(12), D(6), RB_EMBER, 0.95 * alpha);
+		RB_RRect(RB_PointerPos() - eX * D(3) - eY * D(3), eX * D(6) + eY * D(6), D(3), RB_BG, alpha);
 	}
 	drawresetcliparea();
 	string findid = cvar_string("_uib_r_find");
@@ -3414,8 +3425,8 @@ bool TouchUIB_KeyDown(float key, float ascii)
 	if (key == K_MOUSE1 || key == K_MOUSE2)
 	{
 		if (RB_TestPointer()) { }
-		else if (cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
-		RB_Press(rb_mouse);
+		else if (!cvar("vid_pointer_mouse") && cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
+		RB_Press(RB_PointerPos());
 		return true;
 	}
 	if (key == K_MWHEELUP || key == K_MWHEELDOWN)
@@ -3497,9 +3508,9 @@ bool TouchUIB_KeyUp(float key, float ascii)
 	if (key == K_MOUSE1 || key == K_MOUSE2)
 	{
 		if (RB_TestPointer()) { }
-		else if (cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
+		else if (!cvar("vid_pointer_mouse") && cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
 		if (rb_pressed && rb_mouse != rb_last_move) RB_Drag(rb_mouse);
-		RB_Release(rb_mouse);
+		RB_Release(RB_PointerPos());
 	}
 	return true;
 }

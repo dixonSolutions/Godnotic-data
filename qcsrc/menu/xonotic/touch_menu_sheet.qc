@@ -522,6 +522,7 @@ entity TouchSheet_leafAt(vector pos)
 // without the field losing focus, and tapping the field must bring it back.
 void TouchSheet_press(vector pos)
 {
+	main.mouseMove(main, pos); // Focus the control at the press, including a finger landing between frames.
 	main.mousePress(main, pos);
 	entity leaf = main;
 	while (leaf.focusedChild)
