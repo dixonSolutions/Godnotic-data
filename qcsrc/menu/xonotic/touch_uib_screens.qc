@@ -1630,11 +1630,23 @@ void UIB_SetupAction(string a)
 void UIB_SetupTick()
 {
 	// the menu theme once its track is in (the shell fetches it first)
-	if (!uib_setup_music && (fexists(TOUCH_MUSIC_READY_MARKER) || fexists(TOUCH_MENU_THEME_FILE)))
+	if (!uib_setup_music)
 	{
-		uib_setup_music = true;
-		cvar_set("menu_cdtrack", TOUCH_MENU_THEME_TRACK);
-		localcmd("\nfs_rescan; defer 0.4 \"cd loop rising-of-the-phoenix\"\n");
+		bool have_marker = fexists(TOUCH_MUSIC_READY_MARKER);
+		bool have_theme = fexists(TOUCH_MENU_THEME_FILE);
+		if (have_marker || have_theme)
+		{
+			uib_setup_music = true;
+			cvar_set("menu_cdtrack", TOUCH_MENU_THEME_TRACK);
+			localcmd("\nfs_rescan; defer 0.4 \"cd loop rising-of-the-phoenix\"\n");
+			print("MUSIC: start requested, marker=", have_marker, " theme=", have_theme, "\n");
+		}
+		else if (uib_gettime(1) > 8)
+		{
+			// Said once, so a silent menu can be reported instead of guessed at.
+			uib_setup_music = true;
+			print("MUSIC: no theme on disk, nothing to play\n");
+		}
 	}
 	UIB_Build("setup");
 	if (!UIB_SetupDone())
