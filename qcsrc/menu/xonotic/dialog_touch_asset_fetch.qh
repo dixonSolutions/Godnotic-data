@@ -39,7 +39,6 @@ CLASS(GodnoticAssetFetchDialog, XonoticRootDialog)
 	// restart the app by hand.
 	ATTRIB(GodnoticAssetFetchDialog, relaunchFailed, bool, false);
 	// Menu BGM starts once the music pack is on disk (may be mid-download).
-	ATTRIB(GodnoticAssetFetchDialog, musicStarted, bool, false);
 	ATTRIB(GodnoticAssetFetchDialog, backgroundFailed, bool, false);
 	// User chose background download — UI stays until they close the window.
 	ATTRIB(GodnoticAssetFetchDialog, backgroundMode, bool, false);

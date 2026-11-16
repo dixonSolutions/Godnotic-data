@@ -127,23 +127,6 @@ void TouchAssetFetch_drawScrim(entity me)
 	draw_alpha = saveAlpha;
 }
 
-/** Start the game-open theme once the track (or music-ready marker) is present.
- *
- * The shell fetches rising-of-the-phoenix.ogg early (~7 MB) into
- * godnotic-theme.pk3dir so BGM is not blocked on the full music zip.
- */
-void TouchAssetFetch_tryMusic(entity me)
-{
-	if (me.musicStarted)
-		return;
-	if (!fexists(TOUCH_MUSIC_READY_MARKER) && !fexists(TOUCH_MENU_THEME_FILE))
-		return;
-	// Prefer the canonical open-menu track; fall back to the user's menu_cdtrack.
-	cvar_set("menu_cdtrack", TOUCH_MENU_THEME_TRACK);
-	localcmd("fs_rescan; defer 0.4 \"cd loop rising-of-the-phoenix\"\n");
-	me.musicStarted = true;
-}
-
 void TouchAssetFetch_updateWidgets(entity me, bool isError, bool isDiscover, bool isDone)
 {
 	string message = (me.progressMessage) ? me.progressMessage : "";
@@ -247,7 +230,6 @@ void GodnoticAssetFetchDialog_draw(entity me)
 	if (isDone && !me.completedTime)
 		me.completedTime = time + TOUCH_ASSET_FETCH_DONE_DWELL;
 
-	TouchAssetFetch_tryMusic(me);
 	TouchAssetFetch_updateWidgets(me, isError, isDiscover, isDone);
 
 	TouchAssetFetch_drawScrim(me);
