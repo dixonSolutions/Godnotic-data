@@ -963,10 +963,9 @@ void UIB_BuildServers()
 {
 	UIB_ServerParams();
 	bool lan = UIB_VMf("mp.lan");
-	// what Join joins: the typed address if there is one, else the chosen row
+	// Keep the chosen row highlighted even if its address is edited.
 	string sel = UIB_VM("mp.server");
 	string typed = UIB_VM("mp.address");
-	if (typed != "") sel = "";
 	if (!UIB_Screen("mp", _("Multiplayer")))
 		return;
 	uib_s("kind", "page");
@@ -2035,14 +2034,14 @@ void UIB_RowEvent(string node, string row, string json)
 		{
 			// one tap chooses, a double tap joins; an activate on a row that is not
 			// the chosen one only chooses it (as in the map picker)
-			bool chosen = (row == UIB_VM("mp.server") && UIB_VM("mp.address") == "");
+			bool chosen = (row == UIB_VM("mp.server") && UIB_VM("mp.address") == row);
 			if (strstrofs(json, "\"kind\":\"activate\"", 0) >= 0 && chosen)
 			{
 				UIB_Join(row);
 				return;
 			}
 			UIB_VMSet("mp.server", row);
-			UIB_VMSet("mp.address", "");
+			UIB_VMSet("mp.address", row);
 			UIB_RebuildAll();
 			return;
 		}
