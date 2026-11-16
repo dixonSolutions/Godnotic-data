@@ -2873,7 +2873,16 @@ void Scoreboard_Draw(bool should_draw)
 				? count_seconds_decs(respawn_time - time, autocvar_hud_panel_scoreboard_respawntime_decimals)
 				: count_seconds(ceil(respawn_time - time))));
 		else if (time >= respawn_time)
-			str = sprintf(_("You are dead, press ^2%s^7 to respawn"), getcommandkey(_("jump"), "+jump"));
+		{
+			// On a touch device there is no key to press: name the control the
+			// touch layer puts on screen (Touch_CommandLabel), and only fall
+			// back to the key bind when there is no such control.
+			string respawn_control = Touch_CommandLabel("+jump");
+			if (respawn_control != "")
+				str = sprintf(_("You are dead, tap ^2%s^7 to respawn"), respawn_control);
+			else
+				str = sprintf(_("You are dead, press ^2%s^7 to respawn"), getcommandkey(_("jump"), "+jump"));
+		}
 
 		pos.y += 1.2 * hud_fontsize.y;
 		drawcolorcodedstring(pos + '0.5 0 0' * (panel_size.x - stringwidth(str, true, hud_fontsize)), str, hud_fontsize, panel_fg_alpha, DRAWFLAG_NORMAL);
