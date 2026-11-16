@@ -694,7 +694,7 @@ string gettooltip()
 // moving or clicking the mouse brings it back (vid_pointer_mouse, engine).
 bool m_pointer_shown()
 {
-	return cvar("vid_pointer_mouse") != 0;
+	return cvar("vid_pointer_mouse") != 0 && !cvar("vid_system_cursor"); // Touch: SDL draws the system pointer
 }
 
 void m_tooltip(vector pos)
@@ -904,7 +904,7 @@ void m_draw(float width, float height)
 
 	execute_next_frame();
 
-	menuMouseMode = cvar("menu_mouse_absolute");
+	menuMouseMode = (cvar("menu_mouse_absolute") || cvar("vid_system_cursor")); // Touch: SDL system pointer uses absolute input
 
 	if (anim) anim.tickAll(anim);
 
@@ -1080,6 +1080,7 @@ void m_display()
 {
 	Menu_Active = true;
 	setkeydest(KEY_MENU);
+	menuMouseMode = (cvar("menu_mouse_absolute") || cvar("vid_system_cursor")); // Touch
 	setmousetarget((menuMouseMode ? MT_CLIENT : MT_MENU));
 
 	if (!menuInitialized) return;

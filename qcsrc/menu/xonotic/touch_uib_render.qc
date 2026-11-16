@@ -3278,7 +3278,7 @@ bool TouchUIB_Draw(float alpha)
 		m = rb_mouse;
 		rb_mouse = mprev;
 	}
-	else if (!cvar("menu_mouse_absolute"))
+	else if (!menuMouseMode)
 		m = rb_mouse + m;
 	m.x = bound(0, m.x, rb_scr.x);
 	m.y = bound(0, m.y, rb_scr.y);
@@ -3325,7 +3325,7 @@ bool TouchUIB_Draw(float alpha)
 		RB_Text('20 100 0', gs, 22, RB_TEXT, 1);
 		drawfont = FONT_USER;
 	}
-	if (RB_PointerShown(cvar("vid_pointer_mouse")) && cvar("menu_mouse_absolute") && RB_PointerPos() != '0 0 0')
+	if (!cvar("vid_system_cursor") && RB_PointerShown(cvar("vid_pointer_mouse")) && menuMouseMode && RB_PointerPos() != '0 0 0')
 	{
 		RB_RRect(RB_PointerPos() - eX * D(6) - eY * D(6), eX * D(12) + eY * D(12), D(6), RB_EMBER, 0.95 * alpha);
 		RB_RRect(RB_PointerPos() - eX * D(3) - eY * D(3), eX * D(6) + eY * D(6), D(3), RB_BG, alpha);
@@ -3425,7 +3425,7 @@ bool TouchUIB_KeyDown(float key, float ascii)
 	if (key == K_MOUSE1 || key == K_MOUSE2)
 	{
 		if (RB_TestPointer()) { }
-		else if (!cvar("vid_pointer_mouse") && cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
+		else if (menuMouseMode) rb_mouse = getmousepos();
 		RB_Press(RB_PointerPos());
 		return true;
 	}
@@ -3508,7 +3508,7 @@ bool TouchUIB_KeyUp(float key, float ascii)
 	if (key == K_MOUSE1 || key == K_MOUSE2)
 	{
 		if (RB_TestPointer()) { }
-		else if (!cvar("vid_pointer_mouse") && cvar("menu_mouse_absolute")) rb_mouse = getmousepos();
+		else if (menuMouseMode) rb_mouse = getmousepos();
 		if (rb_pressed && rb_mouse != rb_last_move) RB_Drag(rb_mouse);
 		RB_Release(RB_PointerPos());
 	}
