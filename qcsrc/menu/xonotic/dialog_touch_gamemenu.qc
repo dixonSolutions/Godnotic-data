@@ -120,6 +120,7 @@ void TouchGameMenu_Spectate(entity btn, entity me)
 void GodnoticGameMenuDialog_fill(entity me)
 {
 	entity e;
+	int spectator_rows;
 	// What a player came for is on the first screen of a phone (2340x1080):
 	// Resume, then Join game / Spectate. Leave and Quit are the last row, which
 	// the touch sheet pins to the bottom edge with the row above it
@@ -137,7 +138,26 @@ void GodnoticGameMenuDialog_fill(entity me)
 			e.onClick = TouchGameMenu_Spectate;
 			e.onClickEntity = e;
 			setDependent(e, "_touch_act_spectate", 1, 3);
-	me.TR(me);
+	// The spectator bar is off by default (touch_specbar_visible): following
+	// and its controls stay here, in MENU, whatever the bar setting says. Only
+	// while one is offered, so the rows do not leave gaps in other modes.
+	spectator_rows = (cvar("_touch_act_prev") || cvar("_touch_act_follow")
+		|| cvar("_touch_act_next") || cvar("_touch_act_free"));
+	if (spectator_rows)
+	{
+		me.TR(me);
+			me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Previous player"), '0 0 0', "touch_action prev", COMMANDBUTTON_CLOSE));
+				setDependent(e, "_touch_act_prev", 1, 3);
+			me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Follow player"), '0 0 0', "touch_action follow", COMMANDBUTTON_CLOSE));
+				setDependent(e, "_touch_act_follow", 1, 3);
+		me.TR(me);
+		me.TR(me);
+			me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Next player"), '0 0 0', "touch_action next", COMMANDBUTTON_CLOSE));
+				setDependent(e, "_touch_act_next", 1, 3);
+			me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Free-fly"), '0 0 0', "touch_action free", COMMANDBUTTON_CLOSE));
+				setDependent(e, "_touch_act_free", 1, 3);
+		me.TR(me);
+	}
 	me.TR(me);
 		me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Change team"), '0 0 0', "touch_action team", 0));
 			setDependent(e, "_touch_act_team", 1, 1);

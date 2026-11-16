@@ -1334,6 +1334,16 @@ void UIB_BuildPause()
 			UIB_Button("spectate", _("Spectate"), ((cvar("_touch_act_spectate") == 3)
 				? UIB_AC("spectate", _("Spectate"), "esp", "secondary", _("Spectate? You give up this round or what you carry."), _("Spectate"), false)
 				: UIB_A("spectate", _("Spectate"), "esp")), "secondary");
+		// The spectator bar is off by default (touch_specbar_visible): following
+		// stays here, in MENU, whatever the bar setting says.
+		if (cvar("_touch_act_follow"))
+			UIB_Button("follow", _("Follow player"), UIB_A("follow", _("Follow player"), "player"), "secondary");
+		if (cvar("_touch_act_prev"))
+			UIB_Button("prev", _("Previous player"), UIB_A("prev", _("Previous player"), "chevron"), "secondary");
+		if (cvar("_touch_act_next"))
+			UIB_Button("next", _("Next player"), UIB_A("next", _("Next player"), "chevron"), "secondary");
+		if (cvar("_touch_act_free"))
+			UIB_Button("free", _("Free-fly"), UIB_A("free", _("Free-fly"), "esp"), "secondary");
 		UIB_Open("disconnect", "button");
 			// the host leaving ends a LAN game for everyone in it
 			uib_s("label", hosting ? _("End the game") : _("Leave match"));
@@ -1957,6 +1967,8 @@ void UIB_Action(string node, string a, string payload)
 			return;
 		}
 		case "resume": m_hide(); return;
+		case "follow": case "next": case "prev": case "free":
+			localcmd(sprintf("\ntouch_action %s\n", a)); m_hide(); return;
 		case "spectate": localcmd("\ntouch_action spectate confirm\n"); m_hide(); return;
 		case "disconnect": localcmd("\ndisconnect\n"); return;
 		// disconnect alone does not stop a join the server has not answered yet
