@@ -517,11 +517,7 @@ void UIB_SecUpdatesAndySU()
 		string why = (hold == "wifi") ? _("Waiting for Wi-Fi") : ((hold == "auto") ? _("Automatic updates are off") : _("Ready to download"));
 		UIB_Section("available", sprintf(_("Version %s is available"), latest), false);
 			UIB_Text("about", ((size != "") ? sprintf(_("%s · %s"), TouchAndySU_bytes(stof(size)), why) : why), "caption");
-			if (TouchAndySU_extra("net") == "metered")
-				UIB_Button("download", _("Download now"), UIB_AC("updates.download", _("Download now"), "download", "primary",
-					_("Download on mobile data?"), _("Download"), false), "primary");
-			else
-				UIB_Button("download", _("Download now"), UIB_A("updates.download", _("Download now"), "download"), "primary");
+			UIB_Button("download", _("Download now"), UIB_A("updates.download", _("Download now"), "download"), "primary");
 		UIB_Close();
 	}
 	else if (state == "shell-update")
@@ -581,11 +577,7 @@ void UIB_SecUpdatesApp()
 			UIB_Text("about", ((size != "" && stof(size) > 0) ? sprintf(_("%s · %s"), TouchAndySU_bytes(stof(size)), why) : why), "caption");
 			if (live)
 				UIB_Text("andysu", _("This version brings AndySU: after it, updates download and apply by themselves, without reinstalling."), "caption");
-			if (TouchUpdate_extra("net") == "metered")
-				UIB_Button("install", _("Download and install"), UIB_AC("updates.install", _("Download and install"), "download", "primary",
-					_("Download on mobile data?"), _("Download"), false), "primary");
-			else
-				UIB_Button("install", _("Download and install"), UIB_A("updates.install", _("Download and install"), "download"), "primary");
+			UIB_Button("install", _("Download and install"), UIB_A("updates.install", _("Download and install"), "download"), "primary");
 		UIB_Close();
 	}
 	if (state == TOUCH_UPDATE_ERROR && TouchUpdate_message() != "")

@@ -1012,7 +1012,7 @@ void UIB_BuildServers()
 		uib_s("density", "compact");
 		uib_s("display", "table");
 		uib_s("rowHeight", "compact");
-		uib_s("state", "ready");
+		uib_s("state", cvar("_slist_refreshing") ? "loading" : "ready");
 		uib_b("live", 1);
 		uib_j("rowSelect", UIB_A("server.select", _("Choose"), "check"));
 		uib_j("rowPrimary", UIB_AS("server.join", _("Join"), "play", "primary"));
