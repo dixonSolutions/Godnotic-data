@@ -260,14 +260,17 @@ void UIB_CampaignRows()
 // _slist_refreshing says a refresh is running. True when either changed.
 string uib_mp_summary;
 float uib_mp_refreshing = -1;
+float uib_mp_master_state = -1;
 bool UIB_ServerSummary()
 {
 	string out = cvar_string("_slist_summary");
 	float r = cvar("_slist_refreshing");
-	if (out == uib_mp_summary && r == uib_mp_refreshing)
+	float master = cvar("_slist_master_state");
+	if (out == uib_mp_summary && r == uib_mp_refreshing && master == uib_mp_master_state)
 		return false;
 	strcpy(uib_mp_summary, out);
 	uib_mp_refreshing = r;
+	uib_mp_master_state = master;
 	return true;
 }
 
@@ -1022,9 +1025,15 @@ void UIB_BuildServers()
 		if (lan)
 			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"lan\"}", uib_q(_("No games on this network")),
 				uib_q(_("Games hosted on your Wi-Fi or VPN show up here."))));
+		else if (cvar("_slist_master_state") == 2)
+			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"server\",\"action\":%s}", uib_q(_("Master server unreachable")),
+				uib_q(_("Check your connection. Retrying automatically.")), UIB_A("refresh", _("Refresh"), "refresh")));
+		else if (cvar("_slist_servers") > 0)
+			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"server\"}", uib_q(_("No servers match your filters")),
+				uib_q(_("Change your search or filters to see more servers."))));
 		else
-			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"server\",\"action\":%s}", uib_q(_("No servers yet")),
-				uib_q(_("Check your connection, then Refresh.")), UIB_A("refresh", _("Refresh"), "refresh")));
+			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"server\",\"action\":%s}", uib_q(_("No servers available")),
+				uib_q(_("Try refreshing the list.")), UIB_A("refresh", _("Refresh"), "refresh")));
 	UIB_Close();
 	UIB_Open("join", "actionbar");
 		uib_s("align", "spread");
