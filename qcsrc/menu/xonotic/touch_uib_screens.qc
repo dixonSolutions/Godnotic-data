@@ -1252,7 +1252,7 @@ bool UIB_HostLocked()
 
 void UIB_BuildPause()
 {
-	if (!UIB_Screen("pause", _("Paused")))
+	if (!UIB_Screen("pause", cvar("_touch_menu_paused") ? _("Pause") : _("Menu")))
 		return;
 	uib_s("kind", "game");
 	uib_s("presentation", "fullscreen");
@@ -1321,7 +1321,7 @@ void UIB_BuildPause()
 	UIB_Close();
 	UIB_Open("actions", "grid");
 		uib_f("minItem", 200);
-		UIB_Button("resume", _("Resume"), UIB_AS("resume", _("Resume"), "resume", "primary"), "primary");
+		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
 		UIB_Button("settings", _("Settings"), UIB_A("settings", _("Settings"), "settings"), "secondary");
 		// the engine's action list (_touch_act_*): Join game while watching, Spectate while playing
 		if (cvar("_touch_act_join"))

@@ -7,6 +7,7 @@
 #include "slider.qh"
 #include "slider_resolution.qh"
 #include "radiobutton.qh"
+#include "touch_menu_settings.qh" // Touch: orientation setting
 
 entity makeXonoticVideoSettingsTab()
 {
@@ -27,6 +28,7 @@ void XonoticVideoSettingsTab_fill(entity me)
 		"menu_cmd sync"
 		, COMMANDBUTTON_APPLY);
 	videoApplyButton.disableOnClick = true;
+	TouchMenu_OrientationRow(me); // Touch: applied live on Android
 
 	me.TR(me);
 		me.TD(me, 1, 1, e = makeXonoticCheckBox(0, "vid_fullscreen", _("Full screen")));

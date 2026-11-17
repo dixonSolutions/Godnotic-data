@@ -4,6 +4,7 @@
 #include "touch_input.qh"
 #include "touch_pointer.qh"
 #include "touch_defs.qh"
+#include "touch_feel.qh"
 
 int touch_customize_drag_widget;
 vector touch_customize_drag_offset;
@@ -28,13 +29,22 @@ vector Touch_Customize_GetWidgetPos(int wid)
 	switch (wid)
 	{
 		case TOUCH_WIDGET_MOVE:
-			return autocvar_touch_move_x * eX + autocvar_touch_move_y * eY + autocvar_touch_move_size * eZ;
+		{
+			vector ui = Touch_UISize();
+			float x = autocvar_touch_move_x, y = autocvar_touch_move_y, r = Touch_StickRadius();
+			if (ui.x < ui.y && 2 * r <= ui.x && 2 * r <= ui.y)
+			{
+				x = bound(r / ui.x, x, 1 - r / ui.x);
+				y = bound(r / ui.y, y, 1 - r / ui.y);
+			}
+			return x * eX + y * eY + autocvar_touch_move_size * eZ;
+		}
 		case TOUCH_WIDGET_FIRE:
 			return autocvar_touch_fire_x * eX + autocvar_touch_fire_y * eY + autocvar_touch_fire_size * eZ;
 		case TOUCH_WIDGET_JUMP:
 			return autocvar_touch_jump_x * eX + autocvar_touch_jump_y * eY + autocvar_touch_jump_size * eZ;
 		case TOUCH_WIDGET_CROUCH:
-			return autocvar_touch_crouch_x * eX + autocvar_touch_crouch_y * eY + autocvar_touch_crouch_size * eZ;
+			return Touch_CrouchX() * eX + autocvar_touch_crouch_y * eY + autocvar_touch_crouch_size * eZ;
 		case TOUCH_WIDGET_WEAPON:
 			return autocvar_touch_weapon_x * eX + autocvar_touch_weapon_y * eY + autocvar_touch_weapon_size * eZ;
 		case TOUCH_WIDGET_ZOOM:
@@ -69,7 +79,7 @@ void Touch_Customize_SetWidgetPos(int wid, float nx, float ny)
 		case TOUCH_WIDGET_JUMP:
 			cvar_set("touch_jump_x", ftos(nx)); cvar_set("touch_jump_y", ftos(ny)); break;
 		case TOUCH_WIDGET_CROUCH:
-			cvar_set("touch_crouch_x", ftos(nx)); cvar_set("touch_crouch_y", ftos(ny)); break;
+			cvar_set("touch_crouch_x", ftos(nx + (Touch_UISize().x < Touch_UISize().y ? 0.04 : 0))); cvar_set("touch_crouch_y", ftos(ny)); break;
 		case TOUCH_WIDGET_WEAPON:
 			cvar_set("touch_weapon_x", ftos(nx)); cvar_set("touch_weapon_y", ftos(ny)); break;
 		case TOUCH_WIDGET_ZOOM:

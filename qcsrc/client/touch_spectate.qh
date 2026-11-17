@@ -15,12 +15,14 @@ const int TOUCH_SPEC_OUT_FREE = 4;    // out of the round, free-flying
 const int TOUCH_SPEC_BAR_PREV = 0;
 const int TOUCH_SPEC_BAR_MAIN = 1;
 const int TOUCH_SPEC_BAR_NEXT = 2;
-const int TOUCH_SPEC_BAR_PARTS = 3;
+const int TOUCH_SPEC_BAR_JOIN = 3;
+const int TOUCH_SPEC_BAR_PARTS = 4;
 const int TOUCH_SPEC_ACT_NONE = 0;
 const int TOUCH_SPEC_ACT_FOLLOW = 1;
 const int TOUCH_SPEC_ACT_NEXT = 2;
 const int TOUCH_SPEC_ACT_PREV = 3;
 const int TOUCH_SPEC_ACT_FREE = 4;
+const int TOUCH_SPEC_ACT_JOIN = 7;
 
 // The bar is off by default on a touch screen (touch_specbar_visible):
 // following is a setting in Touch controls, reachable from MENU, not a control
@@ -33,6 +35,7 @@ const int TOUCH_ROLE_SPEC_PREV = 301;   // weapprev on the press
 const int TOUCH_ROLE_SPEC_FREE = 302;   // +attack2 while held: back to free-fly
 const int TOUCH_ROLE_SPEC_UP = 303;     // +moveup while held
 const int TOUCH_ROLE_SPEC_DOWN = 304;   // +movedown while held
+const int TOUCH_ROLE_SPEC_JOIN = 305;   // JOIN, on the press
 
 int Touch_Spec_State(void);
 // True when the spectator bar is on (touch_specbar_visible) and there is a
@@ -53,3 +56,6 @@ void Touch_Spec_Release(void);
 string Touch_Spec_CommandLabel(string command);
 string Touch_Spec_ObserverHint(string hint, int status, int choice);
 string Touch_Spec_TeamHint(string hint, string color);
+// The observer hints on touch: < and > for the next player, JOIN to join.
+string Touch_Spec_NextHint(string hint, int status);
+string Touch_Spec_JoinHint(string hint);

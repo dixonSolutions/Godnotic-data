@@ -23,18 +23,16 @@ void UIB_BuildJoin()
 	bool teamgame = (cvar("_touch_hud_flags") & 4) || teams;
 	if (teamgame)
 		uib_s("subtitle", _("Pick a team, or let the game pick"));
-	uib_j("primary", UIB_AS("join.auto", (teamgame ? _("Auto-select team") : _("Join")), "play", "primary"));
-	if (teams)
-	{
-		UIB_Open("teams", "grid");
+	UIB_Open("choices", "grid");
 			uib_f("minItem", 140);
-			if (teams & 1) UIB_Button("red", _("Red"), UIB_A("join.red", _("Red"), "team"), "secondary");
-			if (teams & 2) UIB_Button("blue", _("Blue"), UIB_A("join.blue", _("Blue"), "team"), "secondary");
-			if (teams & 4) UIB_Button("yellow", _("Yellow"), UIB_A("join.yellow", _("Yellow"), "team"), "secondary");
-			if (teams & 8) UIB_Button("pink", _("Pink"), UIB_A("join.pink", _("Pink"), "team"), "secondary");
-		UIB_Close();
-	}
-	UIB_Button("spectate", _("Spectate"), UIB_A("join.spectate", _("Spectate"), "esp"), "secondary");
+			if (teams & 1) UIB_Button("red", _("Red"), UIB_A("join.red", _("Red"), "team"), "team-red");
+			if (teams & 2) UIB_Button("blue", _("Blue"), UIB_A("join.blue", _("Blue"), "team"), "team-blue");
+			if (teams & 4) UIB_Button("yellow", _("Yellow"), UIB_A("join.yellow", _("Yellow"), "team"), "team-yellow");
+			if (teams & 8) UIB_Button("pink", _("Pink"), UIB_A("join.pink", _("Pink"), "team"), "team-pink");
+			UIB_Button("auto", (teamgame ? _("Auto-select team") : _("Join")), UIB_A("join.auto", _("Join"), "play"), "primary");
+			UIB_Button("spectate", _("Spectate"), UIB_A("join.spectate", _("Spectate"), "esp"), "secondary");
+	UIB_Close();
+	UIB_Check("autojoin", _("Always auto-join"), "cvar:touch_always_autojoin", "");
 	UIB_Done();
 }
 
@@ -67,7 +65,10 @@ bool UIB_JoinOpen()
 	if (!uib_inited)
 		UIB_Init();
 	UIB_Tick();   // the context may still read "menu" or "loading" right after a join
-	if (!uib_inited || uibn_context != "game")
+	// A join preview is the world on screen with the signon still finishing: the
+	// question belongs over it, before the player is made an observer.
+	bool live = uibn_context == "game" || (uibn_context == "loading" && cvar("_touch_join_preview"));
+	if (!uib_inited || !live)
 		return false;
 	uib_join_watching = TouchJoin_Watching();
 	if (!UIB_JoinUp())
@@ -118,7 +119,8 @@ void UIB_JoinTick()
 {
 	if (!UIB_JoinUp())
 		return;
-	if (uibn_context != "game" || (uib_join_watching && cvar_string("_touch_hud_mode") == "playing"))
+	if ((uibn_context != "game" && !cvar("_touch_join_preview"))
+		|| (uib_join_watching && cvar_string("_touch_hud_mode") == "playing"))
 	{
 		uib_join_watching = false;
 		UIB_JoinClose();

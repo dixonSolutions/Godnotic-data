@@ -36,8 +36,8 @@ void GodnoticEspTab_fill(entity me)
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("ESP (offline practice against bots)")));
 	me.TR(me);
-		me.TD(me, 1, 3, e = makeXonoticCheckBoxString("local", "off", "cl_touch_esp_enabled", _("Enable ESP and practice helpers")));
-			e.tooltip = _("On: the helpers below work in a match against bots on this device. Off: never, anywhere");
+		me.TD(me, 1, 3, e = makeXonoticCheckBoxString("1", "off", "cl_touch_esp_enabled", _("Enable ESP and practice helpers")));
+			e.tooltip = _("Off by default. On: the helpers below work in a match against bots on this device, when the server allows them. Off: never, anywhere");
 		me.TD(me, 1, 3, e = makeXonoticTextLabel(0, _("Takes effect at once and is saved.")));
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticTextLabel(0, _("Only in a match against bots on this device with nobody else connected. Never on servers or with other players.")));

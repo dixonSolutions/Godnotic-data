@@ -130,6 +130,7 @@ void HUD_InfoMessages(bool should_draw)
 						s = sprintf(_("^1Press ^3%s^1 for gametype info"), getcommandkey(_("server info"), "+show_info"));
 						break;
 				}
+				s = Touch_Spec_NextHint(s, spectatee_status); // Touch: < and > change player
 				s = Touch_Spec_ObserverHint(s, spectatee_status, img_cur_msg[img_curr_group] % 3); // Touch:
 				InfoMessage(s);
 			}
@@ -139,7 +140,10 @@ void HUD_InfoMessages(bool should_draw)
 			img_curr_group = M_ARGV(2, int);
 
 			if (!mutator_returnvalue && !wants_join)
-				InfoMessage(sprintf(_("^1Press ^3%s^1 to join"), getcommandkey(_("jump"), "+jump")));
+			{
+				s = Touch_Spec_JoinHint(sprintf(_("^1Press ^3%s^1 to join"), getcommandkey(_("jump"), "+jump"))); // Touch:
+				InfoMessage(s);
+			}
 		}
 
 		if (wants_join > 0)

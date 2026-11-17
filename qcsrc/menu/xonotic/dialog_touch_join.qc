@@ -1,6 +1,7 @@
 #include "dialog_touch_join.qh"
 
 #include "touch_menu_scale.qh"
+#include "checkbox.qh"
 
 bool TouchJoin_Watching()
 {
@@ -59,16 +60,16 @@ void GodnoticJoinDialog_draw(entity me)
 void GodnoticJoinDialog_fill(entity me)
 {
 	entity e;
-	me.TR(me);
-		me.TD(me, 2, 4, e = me.autoButton = makeGodnoticCommandButton(_("Join"), '0 0 0', "touch_join auto", COMMANDBUTTON_CLOSE));
+	me.gotoRC(me, 0, 0);
+		me.TD(me, 2, 2, me.team1 = makeGodnoticTeamButton(_("Red"), '1 0.5 0.5', "touch_join red"));
+		me.TD(me, 2, 2, me.team2 = makeGodnoticTeamButton(_("Blue"), '0.5 0.5 1', "touch_join blue"));
+	me.gotoRC(me, 2, 0);
+		me.TD(me, 2, 2, me.team3 = makeGodnoticTeamButton(_("Yellow"), '1 1 0.5', "touch_join yellow"));
+		me.TD(me, 2, 2, me.team4 = makeGodnoticTeamButton(_("Pink"), '1 0.5 1', "touch_join pink"));
+	me.gotoRC(me, 4, 0);
+		me.TD(me, 2, 2, e = me.autoButton = makeGodnoticCommandButton(_("Join"), '0 0 0', "touch_join auto", COMMANDBUTTON_CLOSE));
 			e.preferredFocusPriority = 1;
-	me.TR(me);
-	me.TR(me);
-	me.gotoRC(me, 2.5, 0);
-		me.TD(me, 2, 1, me.team1 = makeGodnoticTeamButton(_("red"), '1 0.5 0.5', "touch_join red"));
-		me.TD(me, 2, 1, me.team2 = makeGodnoticTeamButton(_("blue"), '0.5 0.5 1', "touch_join blue"));
-		me.TD(me, 2, 1, me.team3 = makeGodnoticTeamButton(_("yellow"), '1 1 0.5', "touch_join yellow"));
-		me.TD(me, 2, 1, me.team4 = makeGodnoticTeamButton(_("pink"), '1 0.5 1', "touch_join pink"));
-	me.gotoRC(me, 5.5, 0);
-		me.TD(me, 2, 4, makeGodnoticCommandButton(_("Spectate"), '0 0 0', "touch_join spectate", COMMANDBUTTON_CLOSE));
+		me.TD(me, 2, 2, makeGodnoticCommandButton(_("Spectate"), '0 0 0', "touch_join spectate", COMMANDBUTTON_CLOSE));
+	me.gotoRC(me, 6.5, 0);
+		me.TD(me, 1, 4, makeXonoticCheckBox(0, "touch_always_autojoin", _("Always auto-join")));
 }

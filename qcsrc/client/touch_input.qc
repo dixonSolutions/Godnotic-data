@@ -58,14 +58,22 @@ vector Touch_StickCenter(void)
 {
 	if (touch_stick_held)
 		return touch_stick_center;
-	return Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
+	vector c = Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
+	vector ui = Touch_UISize();
+	float r = Touch_StickRadius();
+	if (ui.x < ui.y && 2 * r <= ui.x && 2 * r <= ui.y)
+	{
+		c.x = bound(r, c.x, ui.x - r);
+		c.y = bound(r, c.y, ui.y - r);
+	}
+	return c;
 }
 
 // The thumb landed: its centre stays at the authored control position.
 void Touch_StickLand(vector p)
 {
+	touch_stick_center = Touch_StickCenter();
 	touch_stick_held = true;
-	touch_stick_center = Touch_WidgetCenter(autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size);
 }
 
 // The move for a thumb at p: length 0..1 (x right, y down), nothing inside
@@ -513,7 +521,7 @@ int Touch_AssignRole(vector p)
 		return TOUCH_ROLE_JUMP;
 	if (Touch_HopLockShown() && Touch_HopLockHit(p))
 		return TOUCH_ROLE_HOPLOCK;
-	if (autocvar_touch_crouch_visible && Touch_HitCircle(p, autocvar_touch_crouch_x, autocvar_touch_crouch_y, autocvar_touch_crouch_size, 1.10))
+	if (autocvar_touch_crouch_visible && Touch_HitCircle(p, Touch_CrouchX(), autocvar_touch_crouch_y, autocvar_touch_crouch_size, 1.10))
 		return TOUCH_ROLE_CROUCH;
 	if (autocvar_touch_weapon_visible && Touch_HitCircle(p, autocvar_touch_weapon_x, autocvar_touch_weapon_y, autocvar_touch_weapon_size, 1.10))
 		return TOUCH_ROLE_WEAPON;

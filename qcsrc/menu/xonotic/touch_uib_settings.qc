@@ -194,6 +194,7 @@ void UIB_SecGame()
 	UIB_Close();
 	UIB_Section("content", _("Content"), true);
 		UIB_Switch("gentle", _("Gentle mode"), "cvar:cl_gentle", _("No blood or gibs"));
+		UIB_Switch("autojoin", _("Always auto-join"), "cvar:touch_always_autojoin", "");
 	UIB_Close();
 	UIB_Section("lan", _("LAN games"), true);
 		UIB_Switch("lanpopup", _("Close the address popup when someone joins"), "cvar:touch_lan_popup_autoclose", _("When you host on LAN, the popup with your addresses goes away by itself when the first player joins"));

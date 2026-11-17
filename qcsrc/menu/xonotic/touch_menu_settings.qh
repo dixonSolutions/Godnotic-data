@@ -13,6 +13,7 @@ CLASS(GodnoticMenuSizeTab, XonoticTab)
 	ATTRIB(GodnoticMenuSizeTab, name, string, "mobilemenu");
 ENDCLASS(GodnoticMenuSizeTab)
 entity makeGodnoticMenuSizeTab();
+void TouchMenu_OrientationRow(entity me);
 
 // A row and a line of text drawn at the size the slider picks, beside one at
 // today's size.

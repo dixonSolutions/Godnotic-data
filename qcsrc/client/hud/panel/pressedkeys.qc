@@ -15,6 +15,9 @@ void HUD_PressedKeys(bool should_draw)
 {
 	if (!should_draw)
 		return;
+	// On touch the controls on screen are the keys; the panel is for a keyboard.
+	if (cvar("vid_touchscreen") && !touch_desk)
+		return;
 	if (!autocvar__hud_configure)
 	{
 		if (!autocvar_hud_panel_pressedkeys || spectatee_status < 0)

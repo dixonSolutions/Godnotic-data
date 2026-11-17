@@ -222,7 +222,7 @@ void Touch_DrawOverlay(float overlayAlpha)
 			Touch_HopLatched() || Touch_PreviewStates(), Touch_HopLockHeld(), overlayAlpha, TOUCH_C_ACCENT);
 
 	if (autocvar_touch_crouch_visible || autocvar_touch_debug)
-		Touch_DrawCircleWidget(autocvar_touch_crouch_x, autocvar_touch_crouch_y,
+		Touch_DrawCircleWidget(Touch_CrouchX(), autocvar_touch_crouch_y,
 			autocvar_touch_crouch_size, TOUCH_LABEL_CROUCH, Touch_CrouchHeld(), overlayAlpha, TOUCH_C_ACCENT);
 	if (autocvar_touch_weapon_visible || autocvar_touch_debug)
 		Touch_DrawCircleWidget(autocvar_touch_weapon_x, autocvar_touch_weapon_y,

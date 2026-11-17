@@ -75,6 +75,12 @@ float Touch_MirrorX(float nx)
 	return 1.0 - nx;
 }
 
+float Touch_CrouchX(void)
+{
+	vector ui = Touch_UISize();
+	return autocvar_touch_crouch_x - (ui.x < ui.y ? 0.04 : 0);
+}
+
 vector Touch_WidgetCenter(float nx, float ny, float nsize)
 {
 	vector ui = Touch_UISize();

@@ -50,6 +50,8 @@ bool Touch_Spec_Flying(int st)
 // TouchSpec_BarAction
 int Touch_Spec_BarAction(int st, int part)
 {
+	if (part == TOUCH_SPEC_BAR_JOIN)
+		return st != TOUCH_SPEC_NONE ? TOUCH_SPEC_ACT_JOIN : TOUCH_SPEC_ACT_NONE;
 	if (Touch_Spec_Flying(st))
 		return TOUCH_SPEC_ACT_FOLLOW;
 	if (st == TOUCH_SPEC_FOLLOWING)
@@ -62,6 +64,8 @@ int Touch_Spec_BarAction(int st, int part)
 string Touch_Spec_BarLabel(int st, int part)
 {
 	int act = Touch_Spec_BarAction(st, part);
+	if (part == TOUCH_SPEC_BAR_JOIN)
+		return act == TOUCH_SPEC_ACT_JOIN ? "JOIN" : "";
 	if (act == TOUCH_SPEC_ACT_NONE)
 		return (part == TOUCH_SPEC_BAR_MAIN && st != TOUCH_SPEC_NONE) ? "WATCHING" : "";
 	if (part == TOUCH_SPEC_BAR_PREV)
@@ -78,6 +82,8 @@ vector Touch_Spec_BarHalf(int part)
 		Touch_ScreenMin() * cvar_or("touch_specbar_size", 0.085) * 0.5 * Touch_WidgetScale());
 	if (part == TOUCH_SPEC_BAR_MAIN)
 		return eX * (hy * 2.2) + eY * hy;
+	if (part == TOUCH_SPEC_BAR_JOIN)
+		return eX * (hy * 1.15) + eY * hy;
 	return eX * hy + eY * hy;
 }
 
@@ -87,6 +93,8 @@ vector Touch_Spec_BarCenter(int part)
 	if (part == TOUCH_SPEC_BAR_MAIN)
 		return c;
 	float hy = Touch_Spec_BarHalf(TOUCH_SPEC_BAR_MAIN).y;
+	if (part == TOUCH_SPEC_BAR_JOIN)
+		return c + eX * (hy * 2.2 + hy * 0.25 + hy * 2 + hy * 0.25 + hy * 1.15);
 	return c + eX * ((part == TOUCH_SPEC_BAR_PREV ? -1 : 1) * (hy * 2.2 + hy * 0.25 + hy));
 }
 
@@ -112,6 +120,7 @@ int Touch_Spec_ActionRole(int act)
 		case TOUCH_SPEC_ACT_NEXT: return TOUCH_ROLE_SPEC_ATTACK;
 		case TOUCH_SPEC_ACT_PREV: return TOUCH_ROLE_SPEC_PREV;
 		case TOUCH_SPEC_ACT_FREE: return TOUCH_ROLE_SPEC_FREE;
+		case TOUCH_SPEC_ACT_JOIN: return TOUCH_ROLE_SPEC_JOIN;
 		default: return TOUCH_ROLE_IGNORED;
 	}
 }
@@ -146,7 +155,7 @@ bool Touch_Spec_FingerFrame(int role, bool first)
 {
 	// a bar turned off under a held finger stops acting at once
 	if (!Touch_Spec_BarShown(Touch_Spec_State())
-		&& (role == TOUCH_ROLE_SPEC_ATTACK || role == TOUCH_ROLE_SPEC_PREV || role == TOUCH_ROLE_SPEC_FREE))
+		&& (role == TOUCH_ROLE_SPEC_ATTACK || role == TOUCH_ROLE_SPEC_PREV || role == TOUCH_ROLE_SPEC_FREE || role == TOUCH_ROLE_SPEC_JOIN))
 		return false;
 	if (role == TOUCH_ROLE_SPEC_ATTACK)
 		touch_spec_attack = true;
@@ -160,6 +169,11 @@ bool Touch_Spec_FingerFrame(int role, bool first)
 	{
 		if (first)
 			localcmd("weapprev\n");
+	}
+	else if (role == TOUCH_ROLE_SPEC_JOIN)
+	{
+		if (first)
+			localcmd(cvar_or("touch_join_dialog_auto", 1) ? "touch_join auto\n" : "touch_join_dialog\n");
 	}
 	else
 		return false;
@@ -248,6 +262,24 @@ string Touch_Spec_TeamHint(string hint, string color)
 	if (cvar("vid_touchscreen"))
 		return strcat(color, _("Teams are unbalanced!"));
 	return hint;
+}
+
+string Touch_Spec_NextHint(string hint, int status)
+{
+	if (!cvar("vid_touchscreen") || status == -1)
+		return hint;
+	if (!Touch_Spec_BarShown(Touch_Spec_State()))
+		return "";
+	return "^1Tap ^3<^1 or ^3>^1 for next or previous player";
+}
+
+string Touch_Spec_JoinHint(string hint)
+{
+	if (!cvar("vid_touchscreen"))
+		return hint;
+	if (Touch_Spec_BarShown(Touch_Spec_State()))
+		return "^1Tap ^3JOIN^1 to join";
+	return "^1MENU > ^3Join game^1 to join";
 }
 
 string Touch_Spec_CommandLabel(string command)
