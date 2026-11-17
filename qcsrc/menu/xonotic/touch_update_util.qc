@@ -377,6 +377,18 @@ bool TouchAndySU_request(string token)
 	return true;
 }
 
+// Settings > Crash reports: the Android side (CrashStore) owns the reports; this only asks it
+// to open them ("list") — the banner over the main menu shares the newest one directly.
+bool TouchCrashReports_request(string token)
+{
+	float fh = fopen(TOUCH_CRASH_REPORTS_REQUEST_FILE, FILE_WRITE);
+	if (fh < 0)
+		return false;
+	fputs(fh, strcat(token, "\n"));
+	fclose(fh);
+	return true;
+}
+
 string TouchUpdate_stateName()
 {
 	return (touchUpdate_state != string_null) ? touchUpdate_state : TOUCH_UPDATE_IDLE;

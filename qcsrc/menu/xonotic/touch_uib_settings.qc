@@ -486,6 +486,16 @@ void UIB_UpdProgress(string latest, float percent, float done, float total, floa
 
 // Android with AndySU: what delivers updates, the version, Check now, a staged release and
 // Apply now, the download's progress, and the three switches.
+// The crash reports entry, in both update sections: a crash under a live update leaves a report
+// on the device, and this is where the player finds it (Android's CrashStore opens the list).
+void UIB_CrashReportsSection()
+{
+	UIB_Section("crash", _("Diagnostics"), false);
+		UIB_Text("crash.about", _("If Godnotic crashes, a report is kept on this device. It is sent only when you share it."), "caption");
+		UIB_Button("crash", _("Crash reports"), UIB_A("crash.reports", _("Crash reports"), "list"), "");
+	UIB_Close();
+}
+
 void UIB_SecUpdatesAndySU()
 {
 	string state = TouchAndySU_state();
@@ -537,6 +547,8 @@ void UIB_SecUpdatesAndySU()
 	UIB_UpdSwitch("auto", _("Automatic updates"), _("Download and apply updates by themselves"));
 	UIB_UpdSwitch("wifi", _("Update on Wi-Fi only"), _("Downloads wait for Wi-Fi or another unmetered network"));
 	UIB_UpdSwitch("live", _("Apply live"), _("Swap updates in while you play; off: at the next start"));
+
+	UIB_CrashReportsSection();
 }
 
 // Android without an AndySU host (the plain APK of a release, a store or test build): the
@@ -594,6 +606,7 @@ void UIB_SecUpdatesApp()
 	UIB_UpdSwitchV("wifi", _("Update on Wi-Fi only"), TouchUpdate_extra("wifi"),
 		_("Downloads wait for Wi-Fi or another unmetered network"));
 	UIB_UpdLiveOff(_("Needs AndySU, in the Godnotic-live APK"));
+	UIB_CrashReportsSection();
 }
 
 // Linux (Flatpak, Click, a local build) and the web: the version, how updates arrive, and a
@@ -986,6 +999,7 @@ bool UIB_SettingsAction(string node, string a, string payload)
 		case "updates.apply": TouchAndySU_request("apply"); return true;
 		case "updates.download": TouchAndySU_request("download"); return true;
 		case "updates.install": TouchUpdate_request("install"); return true;
+		case "crash.reports": TouchCrashReports_request("list"); return true;
 		case "mods.install.link": UIB_Modal("mods.link"); return true;
 		case "mods.install.url":
 		{

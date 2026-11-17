@@ -78,6 +78,10 @@ const string TOUCH_UPDATE_REQUEST_FILE = "touch/update-request.txt";
  */
 const string TOUCH_ANDYSU_STATUS_FILE = "touch/andysu-update-status.txt";
 const string TOUCH_ANDYSU_REQUEST_FILE = "touch/andysu-update-request.txt";
+// Crash reports (Android): XonoticActivity reads this and opens the list or the share sheet;
+// the report itself never leaves the device unless the player shares it.
+const string TOUCH_CRASH_REPORTS_REQUEST_FILE = "touch/crash-reports-request.txt";
+bool TouchCrashReports_request(string token);
 const float TOUCH_ANDYSU_FORMAT = 1;
 
 const float TOUCH_UPDATE_FORMAT = 1;
