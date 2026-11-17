@@ -37,6 +37,10 @@ string TouchGameMenu_Route(string itemname)
 	// joined a newer server mid-match was asked nothing until the next map).
 	if (itemname == "Welcome" && (gamestatus & (GAME_ISSERVER | GAME_CONNECTED)))
 	{
+		// A local match uses the join dialog. A delayed server Welcome can
+		// otherwise reopen the menu after the choice and pause the server.
+		if ((gamestatus & GAME_ISSERVER) && !cvar("g_campaign"))
+			return "welcome.native";
 		if (UIB_WelcomeNative())
 			return "welcome.native";   // no dialog: the stock menu does nothing with it
 		localcmd("\ntouch_join_answered\n");

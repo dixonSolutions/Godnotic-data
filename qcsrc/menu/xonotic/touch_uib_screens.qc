@@ -1337,10 +1337,7 @@ void UIB_BuildPause()
 			// the host leaving ends a LAN game for everyone in it
 			uib_s("label", hosting ? _("End the game") : _("Leave match"));
 			uib_s("style", "destructive");
-			if (hosting)
-				uib_j("action", UIB_AC("disconnect", _("End the game"), "disconnect", "destructive", _("End the game for everyone?"), _("End"), true));
-			else
-				uib_j("action", UIB_AC("disconnect", _("Leave match"), "disconnect", "destructive", _("Leave the match?"), _("Leave"), true));
+			uib_j("action", UIB_AS("disconnect", (hosting ? _("End the game") : _("Leave match")), "disconnect", "destructive"));
 		UIB_Close();
 	UIB_Close();
 	UIB_Done();
@@ -1951,7 +1948,7 @@ void UIB_Action(string node, string a, string payload)
 		case "follow": case "next": case "prev": case "free":
 			localcmd(sprintf("\ntouch_action %s\n", a)); m_hide(); return;
 		case "spectate": localcmd("\ntouch_action spectate confirm\n"); m_hide(); return;
-		case "disconnect": localcmd("\ndisconnect\n"); return;
+		case "disconnect": localcmd("\ntouch_action leave\n"); return;
 		// disconnect alone does not stop a join the server has not answered yet
 		case "setup.retry": case "setup.background": case "setup.close": UIB_SetupAction(a); return;
 		case "loading.cancel": localcmd("\ndisconnect\n_touch_cancel_join\n"); return;
