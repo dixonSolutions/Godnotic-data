@@ -98,7 +98,7 @@ void HUD_InfoMessages(bool should_draw)
 		string s;
 		int wants_join = teamplay ? entcs_GetWantsJoin(current_player) : 0;
 
-		if (spectatee_status)
+		if (spectatee_status && !cvar("_touch_join_waiting"))
 		{
 			if (spectatee_status == -1)
 				s = _("^1Observing");

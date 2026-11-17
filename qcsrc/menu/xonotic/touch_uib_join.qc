@@ -13,29 +13,47 @@
 
 bool uib_join_watching;   // opened for a player who was watching: closes once they play
 
+void UIB_JoinButton(string key, string label, string action, string style)
+{
+	UIB_Open(key, "button");
+		uib_s("label", label);
+		uib_j("action", action);
+		uib_s("style", style);
+		uib_s("width", "fill");
+	UIB_Close();
+}
+
 void UIB_BuildJoin()
 {
-	if (!UIB_Screen("join", _("Join game")))
+	float teams = cvar("_teams_available");
+	bool teamgame = (cvar("_touch_hud_flags") & 4) || teams;
+	if (!UIB_Screen("join", ""))
 		return;
 	uib_s("presentation", "dialog");
 	uib_b("dismissable", 1);
-	float teams = cvar("_teams_available");
-	bool teamgame = (cvar("_touch_hud_flags") & 4) || teams;
-	if (teamgame)
-		uib_s("subtitle", _("Pick a team, or let the game pick"));
-	UIB_Open("choices", "grid");
-			uib_f("minItem", 140);
-			if (teams & 1) UIB_Button("red", _("Red"), UIB_A("join.red", _("Red"), "team"), "team-red");
-			if (teams & 2) UIB_Button("blue", _("Blue"), UIB_A("join.blue", _("Blue"), "team"), "team-blue");
-			if (teams & 4) UIB_Button("yellow", _("Yellow"), UIB_A("join.yellow", _("Yellow"), "team"), "team-yellow");
-			if (teams & 8) UIB_Button("pink", _("Pink"), UIB_A("join.pink", _("Pink"), "team"), "team-pink");
-			UIB_Button("auto", (teamgame ? _("Auto-select team") : _("Join")), UIB_A("join.auto", _("Join"), "play"), "primary");
-			UIB_Button("spectate", _("Spectate"), UIB_A("join.spectate", _("Spectate"), "esp"), "secondary");
+	uib_j("header", "{\"hidden\":true}");
+	// one row: the title and the auto-join checkbox side by side
+	UIB_Open("head", "row");
+		uib_s("align", "center");
+		UIB_Text("title", _("Game"), "title");
+		UIB_Check("autojoin", _("Auto-join"), "cvar:touch_always_autojoin", "");
 	UIB_Close();
-	UIB_Check("autojoin", _("Always auto-join"), "cvar:touch_always_autojoin", "");
+	// one horizontal row, every button the same width
+	UIB_Open("buttons", "row");
+		uib_s("align", "center");
+		if (teamgame && teams)
+		{
+			if (teams & 1) UIB_JoinButton("red", _("Red"), UIB_A("join.red", _("Red"), "team"), "team-red");
+			if (teams & 2) UIB_JoinButton("blue", _("Blue"), UIB_A("join.blue", _("Blue"), "team"), "team-blue");
+			if (teams & 4) UIB_JoinButton("yellow", _("Yellow"), UIB_A("join.yellow", _("Yellow"), "team"), "team-yellow");
+			if (teams & 8) UIB_JoinButton("pink", _("Pink"), UIB_A("join.pink", _("Pink"), "team"), "team-pink");
+		}
+		else
+			UIB_JoinButton("join", _("Join"), UIB_A("join.auto", _("Join"), "play"), "primary");
+		UIB_JoinButton("spectate", _("Spectate"), UIB_A("join.spectate", _("Spectate"), "esp"), "secondary");
+	UIB_Close();
 	UIB_Done();
 }
-
 bool UIB_JoinUp()
 {
 	return strstrofs(strcat(" ", uibn_modal, " "), " join ", 0) >= 0;
@@ -105,6 +123,8 @@ bool UIB_JoinBack()
 	// a join started from a menu screen and not answered yet: Cancel leaves it and
 	// returns there (UIB_ReturnFromGame). Watching a match, it just closes.
 	bool cancel_join = cvar_string("_uib_join_cancel") != "";
+	// dismissing the question is not a choice: stop hiding the observer HUD
+	localcmd("\ntouch_join_cancel\n");
 	UIB_JoinClose();
 	if (cancel_join)
 		localcmd("\ndisconnect\n");

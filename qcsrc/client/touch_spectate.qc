@@ -75,29 +75,65 @@ string Touch_Spec_BarLabel(int st, int part)
 	return "FREE";
 }
 
-// The bar, as touch_hud.c spec_bar_part: a 46 dp row (touch_specbar_*).
+// The bar, fitted like touch_spectate.h TouchSpec_BarLayout: all four parts
+// (previous, main, next, JOIN) in one row, moved and shrunk uniformly until
+// they fit, so JOIN is never pushed off the right edge.
+float touch_spec_bar_hy, touch_spec_bar_left, touch_spec_bar_cy;
+void Touch_Spec_BarFit()
+{
+	float u = Touch_DpUnits();
+	float margin = 8 * u;
+	float hy = max(TOUCHDP_SECONDARY * 0.5 * u,
+		Touch_ScreenMin() * cvar_or("touch_specbar_size", 0.085) * 0.5 * Touch_WidgetScale());
+	float w = vid_conwidth, h = vid_conheight;
+	float total = 11.45;
+	float scale = 1;
+	vector c = Touch_WidgetCenter(cvar_or("touch_specbar_x", 0.815), cvar_or("touch_specbar_y", 0.885), 0);
+	if (margin * 2 >= w) margin = 0;
+	if (margin * 2 >= h) margin = 0;
+	if (2 * hy > h - 2 * margin) scale = (h - 2 * margin) / (2 * hy);
+	if (total * hy * scale > w - 2 * margin) scale = (w - 2 * margin) / (total * hy);
+	hy *= scale;
+	total *= hy;
+	touch_spec_bar_left = c.x - total * 0.5;
+	if (touch_spec_bar_left < margin) touch_spec_bar_left = margin;
+	if (touch_spec_bar_left + total > w - margin) touch_spec_bar_left = w - margin - total;
+	if (touch_spec_bar_left < 0) touch_spec_bar_left = 0;
+	touch_spec_bar_cy = c.y;
+	if (touch_spec_bar_cy - hy < margin) touch_spec_bar_cy = margin + hy;
+	if (touch_spec_bar_cy + hy > h - margin) touch_spec_bar_cy = h - margin - hy;
+	touch_spec_bar_hy = hy;
+}
+
 vector Touch_Spec_BarHalf(int part)
 {
-	float hy = max(TOUCHDP_SECONDARY * 0.5 * Touch_DpUnits(),
-		Touch_ScreenMin() * cvar_or("touch_specbar_size", 0.085) * 0.5 * Touch_WidgetScale());
+	touch_spec_bar_hy = 0;
+	Touch_Spec_BarFit();
 	if (part == TOUCH_SPEC_BAR_MAIN)
-		return eX * (hy * 2.2) + eY * hy;
+		return eX * (touch_spec_bar_hy * 2.2) + eY * touch_spec_bar_hy;
 	if (part == TOUCH_SPEC_BAR_JOIN)
-		return eX * (hy * 1.15) + eY * hy;
-	return eX * hy + eY * hy;
+		return eX * (touch_spec_bar_hy * 1.15) + eY * touch_spec_bar_hy;
+	return eX * touch_spec_bar_hy + eY * touch_spec_bar_hy;
 }
 
 vector Touch_Spec_BarCenter(int part)
 {
-	vector c = Touch_WidgetCenter(cvar_or("touch_specbar_x", 0.815), cvar_or("touch_specbar_y", 0.885), 0);
+	float x, gap;
+	touch_spec_bar_hy = 0;
+	Touch_Spec_BarFit();
+	gap = 0.25 * touch_spec_bar_hy;
+	x = touch_spec_bar_left;
+	if (part == TOUCH_SPEC_BAR_PREV)
+		return eX * (x + touch_spec_bar_hy) + eY * touch_spec_bar_cy;
+	x += 2 * touch_spec_bar_hy + gap;
 	if (part == TOUCH_SPEC_BAR_MAIN)
-		return c;
-	float hy = Touch_Spec_BarHalf(TOUCH_SPEC_BAR_MAIN).y;
-	if (part == TOUCH_SPEC_BAR_JOIN)
-		return c + eX * (hy * 2.2 + hy * 0.25 + hy * 2 + hy * 0.25 + hy * 1.15);
-	return c + eX * ((part == TOUCH_SPEC_BAR_PREV ? -1 : 1) * (hy * 2.2 + hy * 0.25 + hy));
+		return eX * (x + 2.2 * touch_spec_bar_hy) + eY * touch_spec_bar_cy;
+	x += 4.4 * touch_spec_bar_hy + gap;
+	if (part == TOUCH_SPEC_BAR_NEXT)
+		return eX * (x + touch_spec_bar_hy) + eY * touch_spec_bar_cy;
+	x += 2 * touch_spec_bar_hy + gap;
+	return eX * (x + 1.15 * touch_spec_bar_hy) + eY * touch_spec_bar_cy;
 }
-
 // The fly rocker: UP over DOWN, beside the stick on its inner side.
 vector Touch_Spec_FlyCenter(bool up)
 {
@@ -212,7 +248,7 @@ void Touch_Spec_Frame(void)
 bool Touch_Spec_DrawOverlay(float alpha)
 {
 	int st = Touch_Spec_State();
-	if (st == TOUCH_SPEC_NONE)
+	if (st == TOUCH_SPEC_NONE || cvar("_touch_join_waiting"))
 		return false;
 	if (Touch_Spec_Flying(st))
 	{
@@ -250,6 +286,8 @@ bool Touch_Spec_DrawOverlay(float alpha)
 
 string Touch_Spec_ObserverHint(string hint, int status, int choice)
 {
+	if (cvar("_touch_join_waiting"))
+		return "";
 	// Free flight has no speed control in the touch spectator overlay.
 	if (cvar("vid_touchscreen") && status == -1 && choice == 1)
 		return "";
@@ -266,6 +304,8 @@ string Touch_Spec_TeamHint(string hint, string color)
 
 string Touch_Spec_NextHint(string hint, int status)
 {
+	if (cvar("_touch_join_waiting"))
+		return "";
 	if (!cvar("vid_touchscreen") || status == -1)
 		return hint;
 	if (!Touch_Spec_BarShown(Touch_Spec_State()))
@@ -275,6 +315,8 @@ string Touch_Spec_NextHint(string hint, int status)
 
 string Touch_Spec_JoinHint(string hint)
 {
+	if (cvar("_touch_join_waiting"))
+		return "";
 	if (!cvar("vid_touchscreen"))
 		return hint;
 	if (Touch_Spec_BarShown(Touch_Spec_State()))

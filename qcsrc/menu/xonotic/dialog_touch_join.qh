@@ -15,10 +15,10 @@ CLASS(GodnoticJoinDialog, XonoticRootDialog)
 	METHOD(GodnoticJoinDialog, showNotify, void(entity));
 	METHOD(GodnoticJoinDialog, draw, void(entity));
 	METHOD(GodnoticJoinDialog, configureDialog, void(entity));
-	ATTRIB(GodnoticJoinDialog, title, string, _("Join game"));
+	ATTRIB(GodnoticJoinDialog, title, string, "");
 	ATTRIB(GodnoticJoinDialog, color, vector, SKINCOLOR_DIALOG_TEAMSELECT);
 	ATTRIB(GodnoticJoinDialog, intendedWidth, float, 0.56);
-	ATTRIB(GodnoticJoinDialog, rows, float, 8);
+	ATTRIB(GodnoticJoinDialog, rows, float, 4);
 	ATTRIB(GodnoticJoinDialog, columns, float, 4);
 	ATTRIB(GodnoticJoinDialog, name, string, "TouchJoin");
 	ATTRIB(GodnoticJoinDialog, autoButton, entity);
