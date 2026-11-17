@@ -249,3 +249,39 @@ float Touch_ChromeAlpha(float alpha)
 	float t = cvar("touch_reduce_motion") ? 1 : bound(0, idle / 0.4, 1);
 	return alpha * (1 - 0.45 * t);
 }
+
+// Keep the vote title and entries below the fitted match-end bar.
+float Touch_VoteTop(float top)
+{
+	if (!cvar("vid_touchscreen") || !cvar("_touch_topbar_active"))
+		return top;
+	float bottom = max(cvar("touch_pause_y") + cvar("touch_pause_bar_h") * 0.5, cvar("touch_scores_y") + cvar("touch_scores_bar_h") * 0.5);
+	bottom = max(bottom, cvar("touch_chat_y") + cvar("touch_chat_bar_h") * 0.5);
+	return max(top, bottom * vid_conheight + 8);
+}
+
+// Let match-end keyboard shortcuts reach the engine before the interactive
+// scoreboard can consume them.
+bool Touch_MatchEndShortcut(int type, float key)
+{
+	if (!mv_active && !intermission)
+		return false;
+	if (key == K_ESCAPE && type == 0)
+	{
+		localcmd("\ntogglemenu 1\n");
+		return true;
+	}
+	return false;
+}
+
+bool Touch_MatchEndChatKey(int type, float key)
+{
+	if ((!mv_active && !intermission) || (type != 0 && type != 1))
+		return false;
+	string keys = strcat(findkeysforcommand("messagemode", 0), " ", findkeysforcommand("messagemode2", 0));
+	int count = tokenize(keys);
+	for (int i = 0; i < count; ++i)
+		if (key == stof(argv(i)))
+			return true;
+	return false;
+}

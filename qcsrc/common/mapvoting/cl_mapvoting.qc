@@ -3,6 +3,7 @@
 #include "net.qh"
 
 #include <client/draw.qh>
+#include <client/touch_mode.qh> // Touch
 #include <client/hud/_mod.qh>
 #include <client/hud/panel/scoreboard.qh>
 #include <common/util.qh>
@@ -389,6 +390,7 @@ void MapVote_Draw(bool should_draw)
 	xmin = vid_conwidth * (gametypevote ? 0.08 : 0.1);
 	xmax = vid_conwidth - xmin;
 	ymin = 20;
+	ymin = Touch_VoteTop(ymin); // Touch: leave room for the match-end bar
 	ymax = vid_conheight - ymin;
 
 	if (chat_posy + chat_sizey * 0.5 < vid_conheight * 0.5)

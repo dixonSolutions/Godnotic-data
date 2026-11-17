@@ -1062,7 +1062,7 @@ void HUD_Cursor_Show()
 {
 	// Only while a mouse is the pointer in use: a finger hides it, the mouse
 	// brings it back (vid_pointer_mouse).
-	if (!cvar("vid_pointer_mouse"))
+	if (!cvar("vid_pointer_mouse") || cvar("vid_system_cursor")) // Touch: SDL owns the mouse pointer
 		return;
 
 	float cursor_alpha = 1 - autocvar__menu_alpha;

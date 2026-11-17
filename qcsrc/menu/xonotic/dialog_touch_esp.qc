@@ -19,13 +19,14 @@ entity GodnoticEsp_option(entity me, float width, string theCvar, string theText
 {
 	entity e;
 	me.TD(me, 1, width, e = makeXonoticCheckBox_T(0, theCvar, theText, theTooltip));
-	setDependentStringNotEqual(e, "cl_touch_esp_enabled", "off");
+	// every off spelling greys it out: "off", "0", "false", "no", empty
+	setDependent(e, "cl_touch_esp_enabled", 1, 1);
 	return e;
 }
 
 float GodnoticEsp_magnetOn(entity e)
 {
-	return cvar_string("cl_touch_esp_enabled") != "off" && cvar("cl_touch_practice_magnet");
+	return cvar("cl_touch_esp_enabled") != 0 && cvar("cl_touch_practice_magnet");
 }
 
 void GodnoticEspTab_fill(entity me)

@@ -71,3 +71,7 @@ void Touch_Extras_Draw(float alpha);
 void Touch_DrawRespawn(float alpha);
 // MENU, SCORE and CHAT fade back while playing and untouched (touch_chrome_idle).
 float Touch_ChromeAlpha(float alpha);
+
+float Touch_VoteTop(float top);
+bool Touch_MatchEndShortcut(int type, float key);
+bool Touch_MatchEndChatKey(int type, float key);

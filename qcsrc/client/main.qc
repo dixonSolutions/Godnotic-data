@@ -2,6 +2,7 @@
 
 #include <client/command/cl_cmd.qh>
 #include <client/draw.qh>
+#include <client/touch_mode.qh> // Touch
 #include <client/hud/_mod.qh>
 #include <client/hud/panel/centerprint.qh>
 #include <client/hud/panel/chat.qh>
@@ -505,6 +506,8 @@ float CSQC_InputEvent(int bInputType, float nPrimary, float nSecondary)
 	if (Touch_InputEvent(bInputType, nPrimary, nSecondary))
 		return true;
 
+	if (Touch_MatchEndShortcut(bInputType, nPrimary)) return true; // Touch: Escape opens the menu at match end
+	if (Touch_MatchEndChatKey(bInputType, nPrimary)) return false; // Touch: let the engine run chat binds
 	override |= HUD_Scoreboard_InputEvent(bInputType, nPrimary, nSecondary);
 	if (override)
 		return true;

@@ -38,6 +38,11 @@ bool UIB_Uid2NameOpen()
 		return false;
 	if (cvar("cl_allow_uid2name") != -1)
 		return true;   // answered meanwhile: nothing to show, and no stock dialog either
+	// Asked once already and never answered (the app was closed on the question):
+	// never ask again. The route is still swallowed, so neither this dialog nor
+	// the stock one comes up; Settings > Privacy answers it when the player wants.
+	if (cvar("_touch_uid2name_asked"))
+		return true;
 	if (!UIB_Uid2NameUp())
 	{
 		if (!uib_inited)
@@ -46,6 +51,9 @@ bool UIB_Uid2NameOpen()
 		if (!uib_inited || uibn_context != "game")
 			return false;
 		UIB_Modal("uid2name");
+		// On disk at once: one question per install, even if it is never answered.
+		cvar_set("_touch_uid2name_asked", "1");
+		localcmd("seta _touch_uid2name_asked 1\nsaveconfig\n");
 	}
 	if (!Menu_Active)
 		m_display();
@@ -58,7 +66,11 @@ void UIB_Uid2NameAnswer(bool yes)
 	// stock dialog's own commands (vyes/vno clear the vote panel's copy of the
 	// question, setreport tells the server)
 	cvar_set("cl_allow_uid2name", yes ? "1" : "0");
-	localcmd(yes ? "\nvyes; setreport cl_allow_uid2name 1\n" : "\nvno; setreport cl_allow_uid2name 0\n");
+	// seta + saveconfig: the answer is on disk before the next launch, so the
+	// next join does not ask again (the stock flow only sets the running value,
+	// which an app that is closed loses)
+	localcmd(yes ? "\nseta cl_allow_uid2name 1\nvyes; setreport cl_allow_uid2name 1\nsaveconfig\n"
+	             : "\nseta cl_allow_uid2name 0\nvno; setreport cl_allow_uid2name 0\nsaveconfig\n");
 	if (UIB_TopScreen() == "uid2name")
 	{
 		UIB_DropLast(true);
