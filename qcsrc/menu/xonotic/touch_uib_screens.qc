@@ -116,6 +116,7 @@ void UIB_Nav()
 }
 
 void UIB_Build(string id);
+void UIB_RememberOrigin();
 
 void UIB_SetStack(string stack, string modal)
 {
@@ -460,6 +461,7 @@ void UIB_StartCampaign(int n)
 		return;
 	}
 	// a campaign level is a local game: never on the network
+	UIB_RememberOrigin();
 	localcmd("\nsv_public -1\nset sv_touch_lan_password \"\"\n");
 	CampaignSetup(n);
 }
@@ -892,6 +894,7 @@ void UIB_StartGame(string map, string mode)
 			return;
 		}
 	}
+	UIB_RememberOrigin();
 	localcmd("\ndisconnect; wait; g_campaign 0\n");
 	// Let the player choose Join or Spectate through the shared join dialog.
 	localcmd("sv_spectate 1\n");
@@ -1193,6 +1196,7 @@ void UIB_Join(string addr)
 			return;
 		}
 	}
+	UIB_RememberOrigin();
 	localcmd(sprintf("\nconnect \"%s\"\n", addr));
 }
 
@@ -1750,6 +1754,37 @@ void UIB_GameStatus()
 	if (clientstate() == CS_CONNECTED || isdemo()) gamestatus |= GAME_CONNECTED;
 }
 
+// A game or a join is started from a screen (Local games, Campaign, the server
+// browser); leaving it, or a join that never finishes, comes back to that screen
+// with its selection and scroll, not Home. A deep link, or a join from the pause
+// menu, has no menu origin and falls back Home.
+void UIB_RememberOrigin()
+{
+	string ret = (uibn_context == "menu" && uibn_stack != "") ? uibn_stack : "";
+	cvar_set("_uib_return", ret);
+	cvar_set("_uib_join_cancel", ret);
+}
+
+bool UIB_ReturnValid(string s)
+{
+	int n = tokenize_console(s);
+	if (!n || argv(0) != "home") return false;
+	string top = argv(n - 1);
+	return top == "home" || top == "sp" || top == "sp.map" || top == "campaign"
+		|| top == "mp" || top == "credits";
+}
+
+void UIB_ReturnFromGame()
+{
+	string ret = cvar_string("_uib_return");
+	cvar_set("_uib_return", "");
+	cvar_set("_uib_join_cancel", "");
+	if (ret != "" && UIB_ReturnValid(ret))
+		UIB_SetStack(ret, "");   // the server list keeps its rows, selection and scroll
+	else
+		UIB_SetStack("home", TouchStartup_nameNeeded() ? "welcome" : "");
+}
+
 void UIB_Context()
 {
 	UIB_GameStatus();
@@ -1768,6 +1803,7 @@ void UIB_Context()
 			UIB_BuildLoading();
 		return;
 	}
+	string prev_ctx = uibn_context;
 	strcpy(uibn_context, ctx);
 	if (ctx != "loading")
 		uib_busy("");
@@ -1783,6 +1819,7 @@ void UIB_Context()
 	if (ctx == "setup") UIB_SetStack("setup", "");
 	else if (ctx == "loading") UIB_SetStack("loading", "");
 	else if (ctx == "game") UIB_SetStack("pause", "");
+	else if (prev_ctx != "menu") UIB_ReturnFromGame();
 	else UIB_SetStack("home", TouchStartup_nameNeeded() ? "welcome" : "");
 	if (ctx == "menu" && cvar("_touch_lan_ended"))
 	{
@@ -1805,6 +1842,8 @@ void UIB_Init()
 	registercvar("_uib_debug_toast", "", 0);
 	registercvar("_uib_debug_servers", "", 0);
 	registercvar("_uib_debug_maps", "", 0);
+	registercvar("_uib_return", "", 0);   // the stack leaving the match returns to
+	registercvar("_uib_join_cancel", "", 0);   // ... and a join that has not become play yet
 	UIB_RecentRows();
 	UIB_CampaignLoad();
 	UIB_CampaignRows();
@@ -1818,6 +1857,9 @@ void UIB_Tick()
 	if (!uib_inited)
 		return;
 	UIB_Context();
+	// the join became play: the popup is now a team question, not a way out
+	if (cvar_string("_uib_join_cancel") != "" && cvar_string("_touch_hud_mode") == "playing")
+		cvar_set("_uib_join_cancel", "");
 	// test hooks (scripts/test-uibridge.sh, screenshot tours): open a modal, show a toast
 	string dbg = cvar_string("_uib_debug_open");
 	if (dbg != "")
@@ -1941,6 +1983,7 @@ void UIB_Action(string node, string a, string payload)
 			string addr = UIB_VM("mp.joining");
 			cvar_set("_cl_touch_lan_password_server", addr);
 			UIB_Back();
+			UIB_RememberOrigin();
 			localcmd(sprintf("\nconnect \"%s\"\n", addr));
 			return;
 		}

@@ -33,6 +33,8 @@ void UIB_SecTouchControls()
 		UIB_Section("buttons", _("Buttons"), false);
 			UIB_Slider("size", _("Size"), "cvar:touch_scale", 0.7, 1.4, 0.05, "x", "");
 			UIB_Slider("opacity", _("Opacity"), "cvar:touch_opacity", 0.3, 1, 0.05, "percent", "");
+			UIB_Choice("fire", _("Fire button"), "cvar:touch_fire_mode", "segmented", UIB_Opts2("0", _("Hold"), "1", _("Toggle")), "");
+			UIB_Switch("dodge", _("Dodge button"), "cvar:touch_dodge_visible", "");
 			UIB_Switch("firedrag", _("Aim while firing"), "cvar:touch_fire_drag_look",
 				_("Drag your thumb off FIRE to turn while it keeps firing"));
 			UIB_Switch("buttondrag", _("Aim from HOP, DUCK and ALT too"), "cvar:touch_button_drag_look", "");
@@ -45,7 +47,7 @@ void UIB_SecTouchControls()
 				UIB_Switch("haptics", _("Vibrate on button presses"), "cvar:touch_haptics", "");
 		UIB_Close();
 		UIB_Section("layout", _("Layout"), false);
-			UIB_Choice("preset", _("Preset"), "cvar:touch_preset", "segmented", strcat("[", UIB_Opt("standard", _("Standard")), ",", UIB_Opt("casual", _("Casual")), ",",
+			UIB_Choice("preset", _("Preset"), "vm:touch.preset", "segmented", strcat("[", UIB_Opt("standard", _("Standard")), ",", UIB_Opt("casual", _("Casual")), ",",
 				strcat(UIB_Opt("competitive", _("Competitive")), ",", UIB_Opt("minimal", _("Minimal")), "]")), "");
 			UIB_Switch("hand", _("Left-handed"), "cvar:touch_handedness", _("Mirrors the layout: move on the right, aim on the left"));
 			UIB_Button("edit", _("Edit layout"), UIB_A("touch.edit", _("Edit layout"), "edit"), "secondary");

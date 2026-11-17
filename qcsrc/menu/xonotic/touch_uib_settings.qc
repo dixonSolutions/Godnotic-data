@@ -79,6 +79,9 @@ string UIB_SecHelp(string k)
 }
 
 void UIB_SecContent(string k);
+void UIB_SearchResults(string q);
+void UIB_SearchIndex();
+bool uib_sr_built;
 
 // Settings: vertical tabs (a split whose panes are the sections). Only the selected
 // section has content; its sub-pages are horizontal tabs inside it.
@@ -86,9 +89,34 @@ void UIB_BuildSettingsRoot()
 {
 	string sel = UIB_VM("settings.section");
 	if (sel == "") sel = "video";
+	// once, before this screen's build begins: a build inside a build is not allowed
+	if (!uib_sr_built)
+	{
+		uib_sr_built = true;
+		UIB_SearchIndex();
+	}
 	if (!UIB_Screen("settings", _("Settings")))
 		return;
 	uib_s("kind", "page");
+	string rv = UIB_VM("settings.reveal");
+	if (rv != "" && uib_gettime(1) > stof(UIB_VM("settings.reveal.at")) + 3)
+	{
+		UIB_VMSet("settings.reveal", "");
+		rv = "";
+	}
+	if (rv != "") uib_s("reveal", rv);
+	UIB_Open("search", "field");
+		uib_s("label", _("Search settings"));
+		uib_s("bind", "vm:settings.query");
+		uib_s("kind", "search");
+		uib_s("placeholder", _("Name, description or what it does"));
+		uib_s("value", UIB_VM("settings.query"));
+	UIB_Close();
+	string q = strtolower(UIB_VM("settings.query"));
+	if (q != "")
+		UIB_SearchResults(q);
+	else
+	{
 	UIB_Open("split", "split");
 		uib_s("style", "vertical-tabs");
 		uib_s("bind", "vm:settings.section");
@@ -107,6 +135,7 @@ void UIB_BuildSettingsRoot()
 			UIB_Close();
 		}
 	UIB_Close();
+	}
 	if (UIB_HomeBarHere()) UIB_HomeBar("settings");
 	UIB_Done();
 }
@@ -138,6 +167,167 @@ bool UIB_SubTab(string key, string label)
 		uib_s("key", key);
 		uib_s("label", label);
 	return key == uib_subsel;
+}
+
+// ---------------------------------------------------------------- search
+// Every control the builders draw is an entry, so a new row is searchable the day it is
+// added. The index pass builds each section and sub-tab into a scratch root and walks it;
+// the ids in that root are the ids the real page uses, with the section put back in.
+const int UIB_SEARCH_MAX = 96;
+string uib_sr_node[UIB_SEARCH_MAX];
+string uib_sr_section[UIB_SEARCH_MAX];
+string uib_sr_tab[UIB_SEARCH_MAX];
+string uib_sr_label[UIB_SEARCH_MAX];
+string uib_sr_help[UIB_SEARCH_MAX];
+string uib_sr_bind[UIB_SEARCH_MAX];
+string uib_sr_path[UIB_SEARCH_MAX];
+string uib_sr_oldtab[UIB_NSECTIONS];
+int uib_sr_count;
+
+string UIB_SecTabs(string sec)
+{
+	switch (sec)
+	{
+		case "video": return "display effects view";
+		case "touch": return "feel hud aim auto";
+		case "player": return "profile colours";
+		case "mods": return "client server pages";
+	}
+	return "";
+}
+
+string UIB_TabLabel(string sec, string tab)
+{
+	if (sec == "video")
+	{
+		switch (tab) { case "display": return _("Display"); case "effects": return _("Effects"); case "view": return _("View"); }
+	}
+	if (sec == "touch")
+	{
+		switch (tab) { case "feel": return _("Touch controls"); case "hud": return _("HUD"); case "aim": return _("Aim"); case "auto": return _("Auto-shoot"); }
+	}
+	if (sec == "player")
+	{
+		switch (tab) { case "profile": return _("Profile"); case "colours": return _("Colours"); }
+	}
+	if (sec == "mods")
+	{
+		switch (tab) { case "client": return _("Client mods"); case "server": return _("Server mods"); case "pages": return _("Pages from mods"); }
+	}
+	return "";
+}
+
+bool UIB_SearchControl(string type, string action)
+{
+	if (type == "switch" || type == "slider" || type == "choice" || type == "stepper"
+		|| type == "field" || type == "colour" || type == "keybind")
+		return true;
+	// Only buttons whose action changes settings; navigation is not a result.
+	return action == "touch.edit" || action == "touch.reset";
+}
+
+void UIB_SearchWalk(string id, string sec, string tab, string path)
+{
+	string type = uib_type(id);
+	string title = uib_get(id, "title");
+	if (type == "section" && title != "")
+		path = (path == "" ? title : strcat(path, " > ", title));
+	if (type == "pane" && id != "searchix" && tab != "")
+		path = strcat(UIB_SecLabel(sec), " > ", UIB_TabLabel(sec, tab));
+	string action = uib_get(id, "action.id");
+	if (UIB_SearchControl(type, action))
+	{
+		string label = uib_get(id, "label");
+		string bind = uib_get(id, "bind");
+		if ((bind != "" || action != "") && label != "" && uib_sr_count < UIB_SEARCH_MAX)
+		{
+			string tail = substring(id, strlen("searchix"), -1);
+			uib_sr_node[uib_sr_count] = strzone(strcat("settings/split/", sec, tail));
+			uib_sr_section[uib_sr_count] = strzone(sec);
+			uib_sr_tab[uib_sr_count] = strzone(tab);
+			uib_sr_label[uib_sr_count] = strzone(label);
+			uib_sr_help[uib_sr_count] = strzone(uib_get(id, "help"));
+			uib_sr_bind[uib_sr_count] = strzone((bind != "") ? bind : action);
+			uib_sr_path[uib_sr_count] = strzone(path);
+			++uib_sr_count;
+		}
+	}
+	int n = uib_count(id);
+	for (int i = 0; i < n; ++i)
+		UIB_SearchWalk(uib_child(id, i), sec, tab, path);
+}
+
+void UIB_SearchBuild(string sec, string tab)
+{
+	UIB_VMSet(strcat("settings.", sec, ".tab"), tab);
+	if (!uib_begin("searchix", "screen")) return;
+	UIB_SecContent(sec);
+	// commit the scratch screen first: uib_count/uib_child read committed children,
+	// and while the build is open the root's are still empty
+	UIB_Done();
+	UIB_SearchWalk("searchix", sec, tab, "");
+	uib_remove("searchix");
+}
+
+void UIB_SearchIndex()
+{
+	for (int i = 0; i < uib_sr_count; ++i)
+	{
+		strunzone(uib_sr_node[i]); strunzone(uib_sr_section[i]); strunzone(uib_sr_tab[i]);
+		strunzone(uib_sr_label[i]); strunzone(uib_sr_help[i]); strunzone(uib_sr_bind[i]); strunzone(uib_sr_path[i]);
+	}
+	uib_sr_count = 0;
+	// the index builds every sub-tab: put the player's open tab back afterwards
+	for (int i = 0; i < UIB_NSECTIONS; ++i)
+		uib_sr_oldtab[i] = strzone(UIB_VM(strcat("settings.", UIB_SecKey(i), ".tab")));
+	for (int i = 0; i < UIB_NSECTIONS; ++i)
+	{
+		string sec = UIB_SecKey(i);
+		// the status pages have no rows of their own to find, and Updates would start a check
+		if (sec == "updates" || sec == "data") continue;
+		string tabs = UIB_SecTabs(sec);
+		if (tabs == "") { UIB_SearchBuild(sec, ""); continue; }
+		int n = tokenize(tabs);
+		for (int t = 0; t < n; ++t)
+			UIB_SearchBuild(sec, argv(t));
+	}
+	for (int i = 0; i < UIB_NSECTIONS; ++i)
+	{
+		UIB_VMSet(strcat("settings.", UIB_SecKey(i), ".tab"), uib_sr_oldtab[i]);
+		strunzone(uib_sr_oldtab[i]);
+	}
+}
+
+int UIB_SearchRank(int i, string q)
+{
+	if (strstrofs(strtolower(uib_sr_label[i]), q, 0) >= 0) return 0;
+	if (strstrofs(strtolower(uib_sr_help[i]), q, 0) >= 0) return 1;
+	if (strstrofs(strtolower(uib_sr_path[i]), q, 0) >= 0) return 2;
+	if (strstrofs(strtolower(uib_sr_bind[i]), q, 0) >= 0) return 3;
+	return -1;
+}
+
+void UIB_SearchResults(string q)
+{
+	int shown = 0;
+	// a hit in the label ranks above one in help, path, and finally the internal name
+	for (int rank = 0; rank < 4; ++rank)
+		for (int i = 0; i < uib_sr_count && shown < 40; ++i)
+		{
+			if (UIB_SearchRank(i, q) != rank) continue;
+			UIB_Open(strcat("r", ftos(i)), "button");
+				uib_s("label", strcat(uib_sr_label[i], " — ", uib_sr_path[i]));
+				uib_s("help", uib_sr_help[i]);
+				uib_j("action", UIB_A(strcat("settings.result.", ftos(i)), uib_sr_label[i], "chevron"));
+				uib_s("style", "tonal");
+			UIB_Close();
+			++shown;
+		}
+	if (shown == 0)
+		UIB_Text("none", sprintf(_("No setting matches \"%s\""), q), "caption");
+	else
+		UIB_Text("count", sprintf(_("%d settings"), shown), "caption");
+	UIB_Button("advanced", _("More in Advanced settings"), UIB_A("settings.advanced", _("Advanced settings"), "settings"), "link");
 }
 
 
@@ -254,28 +444,14 @@ void UIB_SecTouch()
 {
 	UIB_SubTabs("touch");
 	UIB_SecTouchControls();   // Touch controls: look, stick, buttons, layout (touch_uib_touchcontrols.qc)
-	if (UIB_SubTab("controls", _("Controls")))
-	{
-		UIB_Choice("preset", _("Preset"), "cvar:touch_preset", "cards", strcat("[", UIB_Opt("balanced", _("Balanced")), ",", UIB_Opt("casual", _("Casual")), ",",
-			strcat(UIB_Opt("competitive", _("Competitive")), ",", UIB_Opt("minimal", _("Minimal")), ",", UIB_Opt("left", _("Left-handed")), "]")), _("A starting point; every setting below can still be changed"));
-		UIB_Button("reset", _("Apply the preset again"), UIB_A("touch.preset", _("Apply the preset again"), "refresh"), "tonal");
-		UIB_Slider("scale", _("Control size"), "cvar:touch_scale", 0.6, 1.6, 0.05, "x", "");
-		UIB_Choice("fire", _("Fire button"), "cvar:touch_fire_mode", "segmented", UIB_Opts2("0", _("Hold"), "1", _("Toggle")), "");
-		UIB_Choice("hand", _("Handedness"), "cvar:touch_handedness", "segmented", UIB_Opts2("0", _("Right"), "1", _("Left")), "");
-		UIB_Switch("dodge", _("Dodge button"), "cvar:touch_dodge_visible", "");
-	}
-	UIB_Close();
 	if (UIB_SubTab("hud", _("HUD")))
 	{
-		UIB_Slider("opacity", _("Opacity"), "cvar:touch_opacity", 0.2, 1, 0.05, "percent", "");
 		UIB_Slider("hudscale", _("HUD size"), "cvar:touch_hud_scale", 0.6, 1.6, 0.05, "x", "");
 		UIB_Switch("weplist", _("Weapon bar"), "cvar:touch_weplist_visible", "");
 	}
 	UIB_Close();
 	if (UIB_SubTab("aim", _("Aim")))
 	{
-		UIB_Slider("sens", _("Look speed"), "cvar:touch_sens_base", 0.2, 4, 0.05, "x", "");
-		UIB_Switch("invert", _("Invert vertical look"), "cvar:touch_invert_y", "");
 		UIB_Switch("assist", _("Aim assist"), "cvar:cl_touch_aimassist", _("Aim slows over an enemy and is pulled toward one while you aim"));
 		UIB_Slider("strength", _("Pull"), "cvar:cl_touch_aimassist_strength", 0, 1, 0.05, "percent", "");
 		UIB_Switch("ring", _("Show the target ring"), "cvar:cl_touch_aim_ring", "");
@@ -288,14 +464,6 @@ void UIB_SecTouch()
 		UIB_Switch("autododge", _("Dodge incoming fire"), "cvar:cl_touch_autododge", "");
 	}
 	UIB_Close();
-	if (UIB_SubTab("tactics", _("Tactics")))
-	{
-		UIB_Text("note", _("Tactics play for you in matches on this device only."), "caption");
-		UIB_Switch("position", _("Move to good positions"), "cvar:cl_touch_practice_position", "");
-		UIB_Switch("objectives", _("Play the objective"), "cvar:cl_touch_practice_objectives", "");
-		UIB_Switch("threat", _("Watch the biggest threat"), "cvar:cl_touch_practice_threat", "");
-	}
-	UIB_Close();
 	UIB_Close();
 }
 
@@ -305,8 +473,12 @@ void UIB_SecESP()
 		uib_s("body", _("ESP shows players through walls. It works only in matches on this device (Singleplayer and games you host); on other servers it stays off."));
 		uib_s("style", "note");
 	UIB_Close();
-	UIB_Switch("enabled", _("ESP in local matches"), "cvar:cl_touch_esp_enabled", "");
+	UIB_Choice("enabled", _("ESP in local matches"), "cvar:cl_touch_esp_enabled", "segmented",
+		UIB_Opts2("local", _("On"), "off", _("Off")), _("Off by default. A server can also forbid it with sv_touch_esp 0"));
 	UIB_Switch("seethrough", _("Outline enemies behind walls"), "cvar:cl_touch_practice_seethrough", "");
+	UIB_Switch("position", _("Move to good positions"), "cvar:cl_touch_practice_position", "");
+	UIB_Switch("objectives", _("Play the objective"), "cvar:cl_touch_practice_objectives", "");
+	UIB_Switch("threat", _("Watch the biggest threat"), "cvar:cl_touch_practice_threat", "");
 }
 
 string UIB_ColourHex(int i)
@@ -350,6 +522,12 @@ void UIB_SecPlayer()
 		uib_s("kind", "name");
 		uib_f("maxLength", 32);
 		UIB_Apply("reconnect");
+	UIB_Close();
+	UIB_Text("colourcodes", _("Name colour codes: ^0 to ^9, written into the name"), "caption");
+	UIB_Open("colours", "row");
+		uib_b("wrap", 1);
+		for (int i = 0; i < 10; ++i)
+			UIB_Button(strcat("c", ftos(i)), strcat("^", ftos(i)), UIB_A(strcat("player.colour.", ftos(i)), strcat("^", ftos(i)), ""), "tonal");
 	UIB_Close();
 	UIB_Button("model", _("Player model"), UIB_A("settings.model", _("Player model"), "player"), "secondary");
 	}
@@ -686,7 +864,6 @@ void UIB_SecData()
 		if (active) uib_b("indeterminate", 1);
 		if (!active) uib_j("primary", UIB_A("data.fetch", (ready ? _("Check for new data") : _("Download")), "download"));
 	UIB_Close();
-	UIB_Switch("background", _("Download in the background"), "cvar:_touch_asset_fetch_background", "");
 }
 
 void UIB_SecMenuSettings()
@@ -958,6 +1135,41 @@ void UIB_BuildSettings(string id)
 
 bool UIB_SettingsAction(string node, string a, string payload)
 {
+	if (substring(a, 0, 16) == "settings.result.")
+	{
+		int i = stof(substring(a, 16, -1));
+		if (i >= 0 && i < uib_sr_count)
+		{
+			UIB_VMSet("settings.query", "");
+			UIB_VMSet("settings.section", uib_sr_section[i]);
+			if (uib_sr_tab[i] != "") UIB_VMSet(strcat("settings.", uib_sr_section[i], ".tab"), uib_sr_tab[i]);
+			UIB_VMSet("settings.open", "1");
+			UIB_VMSet("settings.reveal", uib_sr_node[i]);
+			UIB_VMSet("settings.reveal.at", ftos(uib_gettime(1)));
+			if (UIB_TopScreen() != "settings") UIB_Push("settings");
+			else UIB_RebuildAll();
+		}
+		return true;
+	}
+	if (substring(a, 0, 14) == "player.colour.")
+	{
+		string digit = substring(a, 14, -1);
+		if (strlen(digit) == 1 && stof(digit) >= 0 && stof(digit) <= 9)
+		{
+			string nm = strcat(cvar_string("_cl_name"), "^", digit);
+			cvar_set("_cl_name", nm);
+			UIB_VMSet("player.name", nm);
+			localcmd(strcat("\nname \"$_cl_name\"\nsaveconfig\n"));
+			UIB_RebuildAll();
+		}
+		return true;
+	}
+	if (a == "mod.open")
+	{
+		// a list's rowPrimary delivered as an action: the row event already chose it
+		UIB_Push("mods.detail");
+		return true;
+	}
 	if (substring(a, 0, 9) == "settings." && a != "settings.advanced" && a != "settings.model")
 	{
 		UIB_VMSet("settings.section", substring(a, 9, -1));
@@ -982,12 +1194,6 @@ bool UIB_SettingsAction(string node, string a, string payload)
 		case "classic.profile": m_goto("profile", false); return true;
 		case "classic.credits": m_goto("Credits", false); return true;
 		case "settings.model": m_goto("profile", true); return true;
-		case "touch.preset":
-			localcmd(strcat("exec touch/profiles/", cvar_string("touch_preset"), ".cfg\n"));
-			if (cvar_string("touch_preset") != "competitive")
-				localcmd("exec touch/profiles/helpers.cfg\n");
-			uib_toast(_("Preset applied"), "success", "check", 2);
-			return true;
 		case "data.fetch": localcmd("\ntouch_assets_fetch\n"); return true;
 		case "updates.check":
 			TouchUpdate_read();
@@ -1080,6 +1286,21 @@ bool UIB_SettingsValue(string node, string value)
 		case "vm:input.invert":
 			UIB_VMSet("input.invert", value);
 			cvar_set("m_pitch", ftos((value == "1" ? -1 : 1) * fabs(cvar("m_pitch"))));
+			UIB_RebuildAll();
+			return true;
+		case "vm:settings.query":
+			UIB_VMSet("settings.query", value);
+			UIB_RebuildAll();
+			return true;
+		case "vm:touch.preset":
+			if (value != "standard" && value != "casual" && value != "competitive" && value != "minimal")
+				return true;
+			cvar_set("touch_preset", value);
+			localcmd(strcat("\nexec touch/profiles/", value, ".cfg\n"));
+			if (value != "competitive")
+				localcmd("exec touch/profiles/helpers.cfg\n");
+			localcmd("saveconfig\n");
+			uib_toast(_("Preset applied"), "success", "check", 2);
 			UIB_RebuildAll();
 			return true;
 		case "vm:settings.section":

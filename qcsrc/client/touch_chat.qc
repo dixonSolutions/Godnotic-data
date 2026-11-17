@@ -21,6 +21,7 @@ vector touch_chat_pill_down;
 int touch_chat_hot_row;
 int touch_chat_hot_cell;
 int touch_chat_hot_button;
+int touch_chat_hot_colour = -1;
 float touch_chat_hot_time;
 
 const int TOUCH_CHAT_BTN_NONE  = -1;
@@ -188,6 +189,7 @@ void Touch_Chat_Open(bool team)
 	touch_chat_hot_row = -1;
 	touch_chat_hot_cell = -1;
 	touch_chat_hot_button = TOUCH_CHAT_BTN_NONE;
+	touch_chat_hot_colour = -1;
 	strcpy(touch_chat_text, "");
 }
 
@@ -195,6 +197,7 @@ void Touch_Chat_Close(void)
 {
 	touch_chat_open = false;
 	touch_chat_pill_arming = false;
+	touch_chat_hot_colour = -1;
 	cvar_set("hud_panel_chat", "1");
 	cvar_set("_touch_chat_sheet", "0");
 	Touch_Pointer_Clear();
@@ -339,10 +342,44 @@ int Touch_Chat_HitButton(vector p)
 	return TOUCH_CHAT_BTN_NONE;
 }
 
+const int TOUCH_CHAT_COLOURS = 10;
+
+// The ^ colour codes, as a row above the field: names and chat carry them, and
+// the system keyboard does not have a key for a caret.
+vector Touch_Chat_ColourHalf(void)
+{
+	float gap = TOUCH_SPACE_2 * Touch_UIScale();
+	float w = (Touch_Chat_InnerHalf().x * 2 - gap * (TOUCH_CHAT_COLOURS - 1)) / TOUCH_CHAT_COLOURS * 0.5;
+	float h = Touch_MMToUnits(TOUCH_MM_COMFORT) * 0.30;
+	return eX * w + eY * h;
+}
+
+vector Touch_Chat_ColourCenter(int i)
+{
+	vector c = Touch_Chat_SheetCenter();
+	vector inner = Touch_Chat_InnerHalf();
+	vector half = Touch_Chat_ColourHalf();
+	float gap = TOUCH_SPACE_2 * Touch_UIScale();
+	float left = c.x - inner.x + half.x;
+	float y = Touch_Chat_FieldCenter().y + Touch_Chat_FieldHalf().y + gap + half.y;
+	return eX * (left + i * (half.x * 2 + gap)) + eY * y;
+}
+
+int Touch_Chat_HitColour(vector p)
+{
+	for (int i = 0; i < TOUCH_CHAT_COLOURS; ++i)
+		if (Touch_HitRectPx(p, Touch_Chat_ColourCenter(i), Touch_Chat_ColourHalf(), 1.1))
+			return i;
+	return -1;
+}
+
 void Touch_Chat_PointerDown(vector p)
 {
 	touch_chat_hot_row = -1;
 	touch_chat_hot_cell = -1;
+	touch_chat_hot_colour = Touch_Chat_HitColour(p);
+	if (touch_chat_hot_colour >= 0)
+		return;
 	touch_chat_hot_button = Touch_Chat_HitButton(p);
 	if (touch_chat_hot_button != TOUCH_CHAT_BTN_NONE)
 		return;
@@ -356,6 +393,12 @@ void Touch_Chat_PointerDown(vector p)
 
 void Touch_Chat_PointerMove(vector p)
 {
+	if (touch_chat_hot_colour >= 0)
+	{
+		if (Touch_Chat_HitColour(p) != touch_chat_hot_colour)
+			touch_chat_hot_colour = -1;
+		return;
+	}
 	if (touch_chat_hot_button != TOUCH_CHAT_BTN_NONE)
 	{
 		if (Touch_Chat_HitButton(p) != touch_chat_hot_button)
@@ -381,6 +424,14 @@ void Touch_Chat_PointerMove(vector p)
 
 void Touch_Chat_PointerUp(void)
 {
+	if (touch_chat_hot_colour >= 0)
+	{
+		int ci = touch_chat_hot_colour;
+		touch_chat_hot_colour = -1;
+		if (strlen(touch_chat_text) + 2 <= autocvar_touch_kb_maxlen)
+			strcpy(touch_chat_text, strcat(touch_chat_text, "^", ftos(ci)));
+		return;
+	}
 	if (touch_chat_hot_button == TOUCH_CHAT_BTN_CLOSE)
 	{
 		Touch_Chat_Close();
@@ -466,8 +517,8 @@ void Touch_Chat_DrawHistory(float alpha)
 	// Between the header row and the field, both of which are already placed
 	// against the same inner box.
 	float top = c.y - inner.y + Touch_Chat_ButtonHalf().y * 2 + Touch_Chat_Pad();
-	float bottom = Touch_Chat_FieldCenter().y - Touch_Chat_FieldHalf().y
-		- TOUCH_SPACE_2 * Touch_UIScale();
+	float bottom = Touch_Chat_ColourCenter(0).y + Touch_Chat_ColourHalf().y
+		+ TOUCH_SPACE_2 * Touch_UIScale();
 
 	float fs = TOUCH_FONT_READOUT_SM * Touch_UIScale() * 1.15;
 	float pitch = fs * 1.55;
@@ -542,6 +593,10 @@ void Touch_Chat_Draw(void)
 		TOUCH_C_ACCENT);
 
 	Touch_Chat_DrawHistory(alpha);
+
+	for (int i = 0; i < TOUCH_CHAT_COLOURS; ++i)
+		Touch_Widget_Key(Touch_Chat_ColourCenter(i), Touch_Chat_ColourHalf(),
+			strcat("^", ftos(i)), touch_chat_hot_colour == i, false, false, alpha, TOUCH_C_INK);
 
 	Touch_Widget_Field(Touch_Chat_FieldCenter(), Touch_Chat_FieldHalf(),
 		touch_chat_text, "tap to type…", alpha, TOUCH_C_ACCENT);

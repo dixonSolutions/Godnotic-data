@@ -89,6 +89,8 @@ bool UIB_JoinAction(string a)
 	}
 	if (substring(a, 0, 5) != "join." || a == "join.address")
 		return false;
+	// answered: the popup's Cancel now closes a team question, it does not leave
+	cvar_set("_uib_join_cancel", "");
 	localcmd(sprintf("\ntouch_join %s\n", substring(a, 5, -1)));
 	UIB_JoinClose();
 	return true;
@@ -100,7 +102,12 @@ bool UIB_JoinBack()
 {
 	if (UIB_TopScreen() != "join")
 		return false;
+	// a join started from a menu screen and not answered yet: Cancel leaves it and
+	// returns there (UIB_ReturnFromGame). Watching a match, it just closes.
+	bool cancel_join = cvar_string("_uib_join_cancel") != "";
 	UIB_JoinClose();
+	if (cancel_join)
+		localcmd("\ndisconnect\n");
 	return true;
 }
 
