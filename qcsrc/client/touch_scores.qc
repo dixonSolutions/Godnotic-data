@@ -63,6 +63,8 @@ vector Touch_Scores_PillCenter(void)
 
 vector Touch_Scores_PillHalf(void)
 {
+	if (cvar("_touch_topbar_active"))
+		return eX * cvar("touch_scores_bar_w") * Touch_UISize().x * 0.5 + eY * cvar("touch_scores_bar_h") * Touch_UISize().y * 0.5;
 	return Touch_WidgetHalfExtents(autocvar_touch_scores_size,
 		autocvar_touch_scores_aspect);
 }
@@ -71,6 +73,12 @@ bool Touch_Scores_PillHit(vector p)
 {
 	if (!autocvar_touch_scores_visible)
 		return false;
+	if (cvar("_touch_topbar_active"))
+	{
+		vector d = p - Touch_Scores_PillCenter();
+		vector h = Touch_Scores_PillHalf();
+		return fabs(d.x) <= h.x && fabs(d.y) <= h.y;
+	}
 	return Touch_HitRect(p, autocvar_touch_scores_x, autocvar_touch_scores_y,
 		autocvar_touch_scores_size, autocvar_touch_scores_aspect, 1.20);
 }

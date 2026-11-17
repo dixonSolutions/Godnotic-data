@@ -95,6 +95,8 @@ vector Touch_Chat_PillCenter(void)
 
 vector Touch_Chat_PillHalf(void)
 {
+	if (cvar("_touch_topbar_active"))
+		return eX * cvar("touch_chat_bar_w") * Touch_UISize().x * 0.5 + eY * cvar("touch_chat_bar_h") * Touch_UISize().y * 0.5;
 	return Touch_WidgetHalfExtents(autocvar_touch_chat_size, autocvar_touch_chat_aspect);
 }
 
@@ -102,6 +104,12 @@ bool Touch_Chat_PillHit(vector p)
 {
 	if (!autocvar_touch_chat_visible)
 		return false;
+	if (cvar("_touch_topbar_active"))
+	{
+		vector d = p - Touch_Chat_PillCenter();
+		vector h = Touch_Chat_PillHalf();
+		return fabs(d.x) <= h.x && fabs(d.y) <= h.y;
+	}
 	return Touch_HitRect(p, autocvar_touch_chat_x, autocvar_touch_chat_y,
 		autocvar_touch_chat_size, autocvar_touch_chat_aspect, 1.20);
 }

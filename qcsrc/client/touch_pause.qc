@@ -47,6 +47,8 @@ vector Touch_Pause_PillCenter(void)
 
 vector Touch_Pause_PillHalf(void)
 {
+	if (cvar("_touch_topbar_active"))
+		return eX * cvar("touch_pause_bar_w") * Touch_UISize().x * 0.5 + eY * cvar("touch_pause_bar_h") * Touch_UISize().y * 0.5;
 	return Touch_WidgetHalfExtents(autocvar_touch_pause_size, autocvar_touch_pause_aspect);
 }
 
@@ -54,6 +56,12 @@ bool Touch_Pause_PillHit(vector p)
 {
 	if (!autocvar_touch_pause_visible)
 		return false;
+	if (cvar("_touch_topbar_active"))
+	{
+		vector d = p - Touch_Pause_PillCenter();
+		vector h = Touch_Pause_PillHalf();
+		return fabs(d.x) <= h.x && fabs(d.y) <= h.y;
+	}
 	return Touch_HitRect(p, autocvar_touch_pause_x, autocvar_touch_pause_y, autocvar_touch_pause_size, autocvar_touch_pause_aspect, 1.20);
 }
 
