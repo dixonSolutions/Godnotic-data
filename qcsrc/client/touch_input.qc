@@ -910,7 +910,11 @@ void Touch_Frame(void)
 	}
 	if (!Touch_Active())
 	{
-		Touch_ReportHudState(-1);
+		// Hidden touch controls are still live gameplay for mouse and keyboard.
+		bool desk_play = !cvar("vid_touchscreen") && !mv_active && !intermission && !scoreboard_ui_enabled && !cursor_active && autocvar__menu_alpha < 1;
+		Touch_ReportHudState(desk_play ? 0 : -1);
+		if (desk_play)
+			Touch_ReportWeaponClass();
 		if (Touch_DeskActive())
 		{
 			Touch_DeskFrame();

@@ -664,8 +664,5 @@ void XonoticMobileLoserTab_fill(entity me)
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("(Development) Loser mode")));
 	me.TR(me);
-		me.TD(me, 1, me.columns, e = makeXonoticTextLabel(0, _("Enables all mobile auto-shoot, aim assist, ESP and wallhack helpers on a desktop machine. Off by default. For development and testing only.")));
-	me.TR(me);
-		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "cl_touch_loser", _("Loser mode (desktop)"),
-			_("Development: run the touch aim assist, auto-shoot and see-through-wall helpers without a touch screen")));
+		me.TD(me, 1, me.columns, e = makeXonoticTextLabel(0, _("Aim assist and auto-shoot work with touch, mouse and keyboard. Configure them in the Aim and Auto-shoot tabs.")));
 }
