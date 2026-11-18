@@ -2,7 +2,7 @@
 #include "touch_uib_screens.qh"
 #include "touch_uib_touch.qh" // Touch HUD: the join popup, Touch controls settings
 
-// Godnotic UI bridge: Settings. Twelve sections, each bound to the cvars players change;
+// Godnotic UI bridge: Settings. Sections are bound to the cvars players change;
 // "Advanced" opens the stock dialogs for the long tail. Mods is a top-level section:
 // client and server mods, a mod's detail with the permissions the engine reports,
 // install from a file or a link, "How to make a mod", and pages mods contribute.
@@ -23,7 +23,7 @@ string UIB_Opts4(string v1, string l1, string v2, string l2, string v3, string l
 }
 
 // The sections: key, label, icon, one-line summary
-const int UIB_NSECTIONS = 12;
+const int UIB_NSECTIONS = 13;
 string UIB_SecKey(int i)
 {
 	switch (i)
@@ -31,6 +31,7 @@ string UIB_SecKey(int i)
 		case 0: return "video"; case 1: return "audio"; case 2: return "game"; case 3: return "input";
 		case 4: return "touch"; case 5: return "esp"; case 6: return "player"; case 7: return "privacy";
 		case 8: return "updates"; case 9: return "data"; case 10: return "menu"; case 11: return "mods";
+		case 12: return "accessibility";
 	}
 	return "video";
 }
@@ -43,6 +44,7 @@ string UIB_SecLabel(string k)
 		case "input": return _("Input"); case "touch": return _("Controls"); case "esp": return _("ESP");
 		case "player": return _("Player"); case "privacy": return _("Privacy"); case "updates": return _("Updates");
 		case "data": return _("Data"); case "menu": return _("Menu"); case "mods": return _("Mods");
+		case "accessibility": return _("Accessibility");
 	}
 	return k;
 }
@@ -74,6 +76,7 @@ string UIB_SecHelp(string k)
 		case "data": return _("Game data and downloads");
 		case "menu": return _("Size and layout");
 		case "mods": return _("Client and server mods, pages from mods");
+		case "accessibility": return _("Desktop assistance");
 	}
 	return "";
 }
@@ -986,6 +989,13 @@ void UIB_SecMods()
 	UIB_Close();
 }
 
+void UIB_SecAccessibility()
+{
+	UIB_Section("desktop", _("Desktop"), true);
+		UIB_Switch("assist", _("Enable auto shoot and aim assist"), "cvar:cl_accessibility_desktop", _("Uses the enabled mobile auto-shoot and aim assist settings"));
+	UIB_Close();
+}
+
 void UIB_SecContent(string k)
 {
 	switch (k)
@@ -1002,6 +1012,7 @@ void UIB_SecContent(string k)
 		case "data": UIB_SecData(); return;
 		case "menu": UIB_SecMenuSettings(); return;
 		case "mods": UIB_SecMods(); return;
+		case "accessibility": UIB_SecAccessibility(); return;
 	}
 }
 
