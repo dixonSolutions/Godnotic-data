@@ -1790,11 +1790,17 @@ bool UIB_ReturnValid(string s)
 		|| top == "mp" || top == "credits";
 }
 
-void UIB_ReturnFromGame()
+// Only leaving a match (context "game") spends the origin: a join passes through
+// "loading" and a moment of "menu" before the match is up, and spending it there
+// sent the player Home when they left (NavOrigin.consumesOrigin).
+void UIB_ReturnFromGame(bool spend)
 {
 	string ret = cvar_string("_uib_return");
-	cvar_set("_uib_return", "");
-	cvar_set("_uib_join_cancel", "");
+	if (spend)
+	{
+		cvar_set("_uib_return", "");
+		cvar_set("_uib_join_cancel", "");
+	}
 	if (ret != "" && UIB_ReturnValid(ret))
 		UIB_SetStack(ret, "");   // the server list keeps its rows, selection and scroll
 	else
@@ -1835,7 +1841,7 @@ void UIB_Context()
 	if (ctx == "setup") UIB_SetStack("setup", "");
 	else if (ctx == "loading") UIB_SetStack("loading", "");
 	else if (ctx == "game") UIB_SetStack("pause", "");
-	else if (prev_ctx != "menu") UIB_ReturnFromGame();
+	else if (prev_ctx != "menu") UIB_ReturnFromGame(prev_ctx == "game");
 	else UIB_SetStack("home", TouchStartup_nameNeeded() ? "welcome" : "");
 	if (ctx == "menu" && cvar("_touch_lan_ended"))
 	{
