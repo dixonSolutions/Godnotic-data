@@ -11,14 +11,7 @@
 
 void TouchMenu_OrientationRow(entity me)
 {
-	entity e;
-	me.TR(me);
-		me.TD(me, 1, 1, e = makeXonoticTextLabel(0, _("Orientation:")));
-		me.TD(me, 1, 2, e = makeXonoticMixedSlider("vid_orientation"));
-			e.addText(e, _("Auto"), 0);
-			e.addText(e, _("Landscape"), 1);
-			e.addText(e, _("Portrait"), 2);
-			e.configureXonoticMixedSliderValues(e);
+	// Rotation follows the device in every orientation.
 }
 
 float touch_menu_size_at_init; // menu_touch_size this menu was built with
