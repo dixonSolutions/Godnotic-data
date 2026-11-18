@@ -343,27 +343,26 @@ void XonoticMobileAimTab_fill(entity me)
 		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "touch_invert_y", _("Invert look Y"), string_null));
 
 	// Engine-side (touch_aim.c), so it works on public servers too. Touch mode
-	// only: with a keyboard attached none of this runs, whatever is set here.
+	// also available with mouse and keyboard.
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("Aim assist")));
 	me.TR(me);
 		me.TD(me, 1, 2, e = makeXonoticCheckBox_T(0, "cl_touch_aimassist", _("Aim assist"),
-			_("Aim slows down over an enemy, and is pulled toward one while a finger is on the aim area")));
+			_("Aim slows over an enemy and snaps to the selected living target while aiming")));
 		me.TD(me, 1, 1, e = makeXonoticCommandButton(_("Light"), '0 0 0',
-			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.25; cl_touch_aimassist_strength 0.3; cl_touch_aimassist_maxrate 45; cl_touch_aimassist_cone 5; menu_cmd sync", 0));
+			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.25; cl_touch_aimassist_strength 1; cl_touch_aimassist_cone 5; menu_cmd sync", 0));
 		me.TD(me, 1, 1, e = makeXonoticCommandButton(_("Medium"), '0 0 0',
-			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.45; cl_touch_aimassist_strength 0.6; cl_touch_aimassist_maxrate 90; cl_touch_aimassist_cone 8; menu_cmd sync", 0));
+			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.45; cl_touch_aimassist_strength 1; cl_touch_aimassist_cone 8; menu_cmd sync", 0));
 		me.TD(me, 1, 1, e = makeXonoticCommandButton(_("Strong"), '0 0 0',
-			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.6; cl_touch_aimassist_strength 0.85; cl_touch_aimassist_maxrate 140; cl_touch_aimassist_cone 11; menu_cmd sync", 0));
+			"cl_touch_aimassist 1; cl_touch_aimassist_friction 0.6; cl_touch_aimassist_strength 1; cl_touch_aimassist_cone 11; menu_cmd sync", 0));
 		me.TD(me, 1, 1, e = makeXonoticCommandButton(_("Off"), '0 0 0', "cl_touch_aimassist 0; menu_cmd sync", 0));
 	me.TR(me);
 		me.TD(me, 1, 1.5, e = makeXonoticTextLabel(0, _("Slowdown:")));
 			setDependent(e, "cl_touch_aimassist", 1, 1);
 		me.TD(me, 1, 1.5, e = makeXonoticSlider_T(0, 0.8, 0.05, "cl_touch_aimassist_friction", _("How much aiming slows down over an enemy (0 = off)")));
 			setDependent(e, "cl_touch_aimassist", 1, 1);
-		me.TD(me, 1, 1.5, e = makeXonoticTextLabel(0, _("Pull:")));
-			setDependent(e, "cl_touch_aimassist", 1, 1);
-		me.TD(me, 1, 1.5, e = makeXonoticSlider_T(0, 1, 0.05, "cl_touch_aimassist_strength", _("How strongly the view is pulled toward a nearby enemy while a finger is on the aim area (0 = off)")));
+		me.TD(me, 1, 3, e = makeXonoticCheckBoxEx_T(0.000001, 0, "cl_touch_aimassist_strength", _("Snap to target"),
+			_("Snap immediately to the selected aim point while assist is active")));
 			setDependent(e, "cl_touch_aimassist", 1, 1);
 	me.TR(me);
 		me.TD(me, 1, 1.5, e = makeXonoticTextLabel(0, _("Catch cone:")));
@@ -372,10 +371,7 @@ void XonoticMobileAimTab_fill(entity me)
 		me.TD(me, 1, 1.5, e = makeXonoticSlider_T(1, 60, 1, "cl_touch_aimassist_cone", _("How many degrees from the crosshair an enemy still counts as near (Targets: Radius, Settings > Auto-shoot). Up to 60: the whole view")));
 			setDependent(e, "cl_touch_aimassist", 1, 1);
 			setDependentAND(e, "cl_touch_aim_mode", 0, 0);
-		me.TD(me, 1, 1.5, e = makeXonoticTextLabel(0, _("Max pull:")));
-			setDependent(e, "cl_touch_aimassist", 1, 1);
-		me.TD(me, 1, 1.5, e = makeXonoticSlider_T(0, 180, 10, "cl_touch_aimassist_maxrate", _("The fastest the pull can turn the view, in degrees per second. It never snaps")));
-			setDependent(e, "cl_touch_aimassist", 1, 1);
+
 	me.TR(me);
 		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "cl_touch_aim_ring", _("Show target ring"),
 			_("Draw a ring at the crosshair while an enemy is near (accent colour) or under it (red), so you can see the helpers working")));
@@ -583,10 +579,10 @@ void XonoticMobileTacticsTab_fill(entity me)
 			_("Lob Electro orbs at an enemy standing or coming at you, then set them off with the bolt")));
 			setDependent(e, "cl_touch_autoshoot_alt", 1, 1);
 		me.TD(me, 1, 3, e = makeXonoticCheckBox_T(0, "cl_touch_aimassist_lastseen", _("Hold where they were last seen"),
-			_("When the enemy you are fighting goes out of sight, keep the crosshair where it was last seen, for up to 3 seconds")));
+			_("When a living enemy you are fighting goes out of sight, hold its last-seen position for up to 3 seconds; stop if it dies or disappears")));
 			setDependent(e, "cl_touch_aimassist", 1, 1);
 	me.TR(me);
-		me.TD(me, 1, 6, e = makeXonoticTextLabel(0, _("See-through walls, Full 360 and instant turn are in the ESP tab: offline matches against bots only.")));
+		me.TD(me, 1, 6, e = makeXonoticTextLabel(0, _("See-through walls and Full 360 are in the ESP tab: offline matches against bots only.")));
 }
 
 entity makeXonoticMobileDynamicsTab()

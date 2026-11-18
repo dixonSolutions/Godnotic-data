@@ -54,11 +54,9 @@ void GodnoticEspTab_fill(entity me)
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("Aim")));
 	me.TR(me);
-		GodnoticEsp_option(me, 2, "cl_touch_practice_360", _("Full 360 targets"),
+		GodnoticEsp_option(me, 3, "cl_touch_practice_360", _("Full 360 targets"),
 			_("With Targets set to Full 360 (Auto-shoot tab), enemies all around you can be the target, with a marker at the screen edge"));
-		GodnoticEsp_option(me, 2, "cl_touch_practice_instant", _("Instant turn"),
-			_("The aim moves onto the target at once instead of at the assist's turn rate"));
-		GodnoticEsp_option(me, 2, "cl_touch_practice_exact", _("Exact lead"),
+		GodnoticEsp_option(me, 3, "cl_touch_practice_exact", _("Exact lead"),
 			_("Lead shots from each enemy's exact velocity on the local server, and aim at any distance"));
 	me.TR(me);
 		GodnoticEsp_option(me, 3, "cl_touch_practice_burst", _("Burst splash beside hidden enemies"),

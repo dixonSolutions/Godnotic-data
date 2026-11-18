@@ -452,8 +452,9 @@ void UIB_SecTouch()
 	UIB_Close();
 	if (UIB_SubTab("aim", _("Aim")))
 	{
-		UIB_Switch("assist", _("Aim assist"), "cvar:cl_touch_aimassist", _("Aim slows over an enemy and is pulled toward one while you aim"));
-		UIB_Slider("strength", _("Pull"), "cvar:cl_touch_aimassist_strength", 0, 1, 0.05, "percent", "");
+		UIB_Switch("assist", _("Aim assist"), "cvar:cl_touch_aimassist", _("Aim slows over an enemy and snaps to the selected living target while aiming"));
+		UIB_VMSet("touch.snap", cvar("cl_touch_aimassist_strength") > 0 ? "1" : "0");
+		UIB_Switch("strength", _("Snap to target"), "vm:touch.snap", _("Snap immediately to the selected aim point while assist is active"));
 		UIB_Switch("ring", _("Show the target ring"), "cvar:cl_touch_aim_ring", "");
 	}
 	UIB_Close();
@@ -1284,6 +1285,10 @@ bool UIB_SettingsValue(string node, string value)
 			UIB_VMSet("video.preset", value);
 			localcmd(sprintf("\nexec effects-%s.cfg\n", value));
 			UIB_RebuildAll();
+			return true;
+		case "vm:touch.snap":
+			cvar_set("cl_touch_aimassist_strength", (value == "1" || value == "true") ? "1" : "0");
+			UIB_VMSet("touch.snap", (value == "1" || value == "true") ? "1" : "0");
 			return true;
 		case "vm:input.invert":
 			UIB_VMSet("input.invert", value);
