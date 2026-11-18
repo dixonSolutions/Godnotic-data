@@ -695,7 +695,7 @@ void UIB_SecUpdatesAndySU()
 	if (staged != "")
 	{
 		UIB_Section("staged", sprintf(_("Version %s is ready"), staged), false);
-			UIB_Text("about", _("Downloaded and checked. It applies the next time Godnotic starts, or now (the game may restart)."), "caption");
+			UIB_Text("about", _("Downloaded and checked. It applies live in a few seconds; if this release cannot be swapped in, the game restarts."), "caption");
 			UIB_Button("apply", _("Apply now"), UIB_A("updates.apply", _("Apply now"), "check"), "primary");
 		UIB_Close();
 	}
@@ -725,6 +725,8 @@ void UIB_SecUpdatesAndySU()
 	UIB_UpdSwitch("auto", _("Automatic updates"), _("Download and apply updates by themselves"));
 	UIB_UpdSwitch("wifi", _("Update on Wi-Fi only"), _("Downloads wait for Wi-Fi or another unmetered network"));
 	UIB_UpdSwitch("live", _("Apply live"), _("Swap updates in while you play; off: at the next start"));
+	string liveWhy = TouchAndySU_extra("live_reason");
+	if (liveWhy != "") UIB_Text("livewhy", liveWhy, "caption");
 
 	UIB_CrashReportsSection();
 }
