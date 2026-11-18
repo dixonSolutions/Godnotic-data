@@ -1270,7 +1270,11 @@ void UIB_BuildPause()
 	uib_s("kind", "game");
 	uib_s("presentation", "fullscreen");
 	bool hosting = cvar("touch_lan_hosting");
-	if (hosting)
+	// A short page (a phone on its side) has room for the actions or the match card,
+	// not both, and the actions are what the player came for (Leave match is one of
+	// them): the cards are dropped rather than the last row pushed off the bottom.
+	bool cardfits = cvar("_uib_region_h") >= 560;
+	if (hosting && cardfits)
 	{
 		bool pw = UIB_HostLocked();
 		UIB_Open("host", "card");
@@ -1292,6 +1296,8 @@ void UIB_BuildPause()
 			UIB_HostAddressesFree(n);
 		UIB_Close();
 	}
+	if (cardfits)
+	{
 	UIB_Open("match", "card");
 		if (gamestatus & GAME_ISSERVER)
 		{
@@ -1332,6 +1338,7 @@ void UIB_BuildPause()
 		}
 		uib_s("aspect", "21:9");
 	UIB_Close();
+	}
 	UIB_Open("actions", "grid");
 		uib_f("minItem", 200);
 		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
@@ -1851,6 +1858,9 @@ void UIB_Init()
 	registercvar("_uib_debug_toast", "", 0);
 	registercvar("_uib_debug_servers", "", 0);
 	registercvar("_uib_debug_maps", "", 0);
+	registercvar("_uib_classic_up", "0", 0);   // tests: 1 while the stock menu draws a dialog
+	registercvar("_uib_region_h", "0", 0);   // the page region the layout got, renderer units
+	registercvar("_uib_screen_h", "0", 0);   // the screen height, same units
 	registercvar("_uib_return", "", 0);   // the stack leaving the match returns to
 	registercvar("_uib_join_cancel", "", 0);   // ... and a join that has not become play yet
 	UIB_RecentRows();

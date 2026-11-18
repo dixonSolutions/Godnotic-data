@@ -3222,8 +3222,15 @@ bool TouchUIB_Draw(float alpha)
 		rb_tick_next = time + 0.1;
 		UIB_Tick();
 	}
-	if (RB_ClassicUp())
-		return false;   // the stock menu draws its dialog
+	{
+		// Tests: 1 while the stock menu draws a dialog in the bridge's place (a
+		// screen the bridge has none for, or, on web, the classic game menu
+		// that used to come up under the pause screen).
+		float classic_up = RB_ClassicUp();
+		cvar_set("_uib_classic_up", classic_up ? "1" : "0");
+		if (classic_up)
+			return false;   // the stock menu draws its dialog
+	}
 	if (alpha <= 0)
 		return true;
 	float rb_t_start = uib_gettime(2);  // GETTIME_REALTIME: real time now, not the frame start
@@ -3231,6 +3238,10 @@ bool TouchUIB_Draw(float alpha)
 	rb_prev_t = time;
 	rb_a = alpha;
 	rb_scr = eX * cvar("vid_conwidth") + eY * cvar("vid_conheight");
+	// what the layout had to work with: the page's region and the screen, in the
+	// renderer's units (tests read them to tell a short window from a wide one)
+	cvar_set("_uib_region_h", ftos(rg_s[0].y));
+	cvar_set("_uib_screen_h", ftos(rb_scr.y));
 	rb_touch = cvar("vid_touchscreen");
 	rb_U = 1 / max(0.05, TouchMenuScale_conToDp(1));
 	if (rb_touch) rb_U *= TouchMenuScale_size();

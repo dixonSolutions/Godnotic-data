@@ -6,6 +6,7 @@
 #include "touch_menu_scale.qh"
 #include "dialog_touch_join.qh"
 #include "touch_uib_touch.qh"
+#include "touch_uib_screens.qh"   // UIB_Wanted()
 
 void GodnoticGameMenuDialog_configureDialog(entity me)
 {
@@ -27,8 +28,19 @@ bool TouchGameMenu_Wanted()
 
 string TouchGameMenu_Route(string itemname)
 {
-	if (itemname == "GameMenu" && TouchGameMenu_Wanted())
-		return "TouchGameMenu";
+	if (itemname == "GameMenu")
+	{
+		// Where the engine's QuakeC renderer draws the menu (web: no native
+		// front end), our pause screen is the in-match menu. Opening a classic
+		// dialog here too drew two menus at once: the stock "Game menu" came
+		// up under our pause screen (web does not detect a touchscreen, so it
+		// never became the finger-sized one). m_goto(nexposee) is no dialog:
+		// the bridge renderer draws the pause screen in its place.
+		if (UIB_Wanted() && !uib_native())
+			return "nexposee";
+		if (TouchGameMenu_Wanted())
+			return "TouchGameMenu";
+	}
 	// The Welcome dialog a newer server's game code opens on connect has
 	// Join! and Spectate itself: the engine's own join dialog is then not
 	// owed for this match (touch_hudmode.c). A native front end cannot draw
