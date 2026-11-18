@@ -772,6 +772,33 @@ void Cmd_Scoreboard_Help()
 " +dom/ticks +dom/takes" \
 " -lms,rc,cts,inv,nb/score"
 
+// A portrait screen (a phone or tablet held upright) has no room for the full table: the name column
+// was squeezed to two letters and the narrow columns drew over each other. There the low-value
+// columns are left out so the name gets the width; landscape keeps every column.
+bool Scoreboard_NarrowLayout()
+{
+	return vid_conwidth < vid_conheight;
+}
+
+bool Scoreboard_NarrowDrops(string field)
+{
+	switch (field)
+	{
+		case "pl":
+		case "fps":
+		case "skill":
+		case "suicides":
+		case "dmgtaken":
+		case "damagetaken":
+		case "dmg":
+		case "damage":
+			return true;
+	}
+	return false;
+}
+
+bool scoreboard_narrow_seen;
+
 void Cmd_Scoreboard_SetFields(int argc)
 {
 	TC(int, argc);
@@ -849,6 +876,8 @@ void Cmd_Scoreboard_SetFields(int argc)
 		}
 
 		str = strtolower(str);
+		if (Scoreboard_NarrowLayout() && Scoreboard_NarrowDrops(str))
+			continue;
 		strcpy(sbt_field_title[sbt_num_fields], TranslateScoresLabel(str));
 
 		PlayerScoreField j;
@@ -2566,6 +2595,13 @@ void Scoreboard_Draw(bool should_draw)
 	panel_pos.x = scoreboard_left;
 	panel_size.x = fixed_scoreboard_width;
 
+	// Turning the device changes which columns fit.
+	if (Scoreboard_NarrowLayout() != scoreboard_narrow_seen)
+	{
+		scoreboard_narrow_seen = Scoreboard_NarrowLayout();
+		Cmd_Scoreboard_SetFields(0);
+	}
+
 	// field sizes can be initialized now after panel_size.x calculation
 	if (!sbt_field_size[0] || sb_field_sizes_init)
 	{
@@ -2653,7 +2689,10 @@ void Scoreboard_Draw(bool should_draw)
 			}
 		}
 		drawcolorcodedstring(pos + '1 0 0' * (panel_size.x - stringwidth(str, true, sb_gameinfo_detail_fontsize)), str, sb_gameinfo_detail_fontsize, panel_fg_alpha, DRAWFLAG_NORMAL); // align right
-		// map name and player count
+		// map name and player count: on its own line when the screen is narrow, where it
+		// met the limits on one line
+		if (Scoreboard_NarrowLayout())
+			pos.y += sb_gameinfo_detail_fontsize.y;
 		if (campaign)
 			str = "";
 		else

@@ -227,7 +227,7 @@ void Touch_DrawRespawn(float alpha)
 {
 	vector c = Touch_WidgetCenter(autocvar_touch_jump_x, autocvar_touch_jump_y, autocvar_touch_jump_size);
 	vector half = Touch_WidgetHalfExtents(autocvar_touch_jump_size, autocvar_touch_jump_aspect * 1.25);
-	Touch_Widget_Capsule(c, half, "RESPAWN", Touch_RoleOwned(TOUCH_ROLE_RESPAWN), false, alpha, TOUCH_C_SUCCESS);
+	Touch_Widget_Capsule(c, half, TOUCH_LABEL_RESPAWN, Touch_RoleOwned(TOUCH_ROLE_RESPAWN), false, alpha, TOUCH_C_SUCCESS);
 }
 
 float Touch_ChromeAlpha(float alpha)

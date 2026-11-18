@@ -56,6 +56,8 @@ const int TOUCH_ROLE_RESPAWN = 119;
 const string TOUCH_LABEL_FIRE = "FIRE";
 const string TOUCH_LABEL_FIRE2 = "ALT";
 const string TOUCH_LABEL_JUMP = "HOP";
+// Dead, the jump button is drawn as this (touch_mode.qc) and the prompt names it.
+const string TOUCH_LABEL_RESPAWN = "RESPAWN";
 const string TOUCH_LABEL_CROUCH = "DUCK";
 const string TOUCH_LABEL_WEAPON = "WEP";
 const string TOUCH_LABEL_RELOAD = "RLD";

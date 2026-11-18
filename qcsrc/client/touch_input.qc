@@ -292,6 +292,9 @@ string Touch_CommandLabel(string command)
 	string spec_label = Touch_Spec_CommandLabel(command);
 	if (spec_label != "")
 		return spec_label;
+	// Dead, the button in HOP's place says RESPAWN (Touch_DrawRespawn): the prompt names that.
+	if (command == "+jump" && !touch_desk && Touch_Mode() == TOUCHMODE_DEAD)
+		return TOUCH_LABEL_RESPAWN;
 	if (command == "+jump" && autocvar_touch_jump_visible)
 		return TOUCH_LABEL_JUMP;
 	// Xonotic's own binds use +fire; +attack is the engine name underneath it.
@@ -1479,7 +1482,7 @@ string Touch_DebugRoleName(int role)
 	if (role == TOUCH_ROLE_JUMP) return "HOP";
 	if (role == TOUCH_ROLE_TOSPEC) return "TOSPEC";
 	if (role == TOUCH_ROLE_READY) return "READY";
-	if (role == TOUCH_ROLE_RESPAWN) return "RESPAWN";
+	if (role == TOUCH_ROLE_RESPAWN) return TOUCH_LABEL_RESPAWN;
 	if (role == TOUCH_ROLE_CROUCH) return "CR";
 	if (role == TOUCH_ROLE_WEAPON) return "WEP";
 	if (role == TOUCH_ROLE_ZOOM) return "ZOOM";
