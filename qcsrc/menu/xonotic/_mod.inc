@@ -93,6 +93,7 @@
 #include <menu/xonotic/dialog_touch_asset_fetch.qc>
 #include <menu/xonotic/dialog_touch_credits.qc> // Touch
 #include <menu/xonotic/dialog_touch_esp.qc> // Touch
+#include <menu/xonotic/dialog_touch_votecall.qc> // Touch
 #include <menu/xonotic/dialog_touch_controls.qc> // Touch: Settings > Mobile > Touch
 #include <menu/xonotic/dialog_touch_gamemenu.qc>
 #include <menu/xonotic/dialog_touch_join.qc> // Touch: the join dialog

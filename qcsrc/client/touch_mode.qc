@@ -285,3 +285,43 @@ bool Touch_MatchEndChatKey(int type, float key)
 			return true;
 	return false;
 }
+
+bool Touch_MapVote_DrawMissingPicture(string pic, vector pos, vector img_size, float alpha)
+{
+	if (pic != "" && drawgetimagesize(pic) != '0 0 0')
+		return false;
+	drawfill(pos, img_size, '0.5 0.5 0.5', 0.25 * alpha, DRAWFLAG_NORMAL);
+	float side = min(img_size.x, img_size.y) * 0.4;
+	vector isize = vec2(side, side);
+	drawpic(pos + (img_size - isize) * 0.5, draw_UseSkinFor("nopreview_map"), isize, '1 1 1', 0.35 * alpha, DRAWFLAG_NORMAL);
+	return true;
+}
+
+bool Touch_MapVote_HasPicture(string pic)
+{
+	return pic != "" && drawgetimagesize(pic) != '0 0 0';
+}
+
+bool Touch_MapVote_CheckFallback(string pic, int id)
+{
+	string map_pic = strcat("maps/", mv_entries[id]);
+	if (map_pic != pic && PreviewExists(map_pic))
+	{
+		strfree(mv_pics[id]);
+		mv_pics[id] = strzone(map_pic);
+		mv_preview[id] = true;
+		return true;
+	}
+	for (int d = 0; d < mv_ssdirs_count; ++d)
+	{
+		string alt = strcat(mv_ssdirs[d], "/", mv_entries[id]);
+		if (mv_ssdirs[d] != "" && alt != pic && PreviewExists(alt))
+		{
+			strfree(mv_pics[id]);
+			mv_pics[id] = strzone(alt);
+			mv_preview[id] = true;
+			return true;
+		}
+	}
+	return false;
+}

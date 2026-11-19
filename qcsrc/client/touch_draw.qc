@@ -203,14 +203,14 @@ void Touch_DrawOverlay(float overlayAlpha)
 		return;
 	}
 
-	if (autocvar_touch_move_visible || autocvar_touch_debug)
+	if ((!cvar("vid_keyboard_detected") && autocvar_touch_move_visible) || autocvar_touch_debug)
 		Touch_DrawMoveStick(overlayAlpha);
 
-	if (autocvar_touch_fire_visible || autocvar_touch_debug)
+	if ((!cvar("vid_mouse_confirmed") && autocvar_touch_fire_visible) || autocvar_touch_debug)
 		Touch_DrawFireButton(overlayAlpha);
 
 	float fire2_alpha = Touch_Fire2Alpha();
-	if (fire2_alpha > 0)
+	if (fire2_alpha > 0 && (!cvar("vid_mouse_confirmed") || autocvar_touch_debug))
 		Touch_DrawCircleWidget(autocvar_touch_fire2_x, autocvar_touch_fire2_y,
 			autocvar_touch_fire2_size, TOUCH_LABEL_FIRE2, Touch_Fire2Held(), overlayAlpha * fire2_alpha, TOUCH_C_DANGER);
 

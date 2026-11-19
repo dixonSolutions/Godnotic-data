@@ -3,6 +3,13 @@
 #include "touch_widget.qh"
 #include "touch_layout.qh"
 #include "touch_weapons.qh"
+
+string Touch_Hud_VoteLabel(string original, bool yes, int count)
+{
+	if (!cvar("vid_touchscreen") && !cvar("vid_touchscreen_detected"))
+		return original;
+	return sprintf((yes ? "^2%s ^7(%d)" : "^1%s ^7(%d)"), (yes ? _("Yes") : _("No")), count);
+}
 #include "touch_input.qh"
 #include <client/main.qh>
 #include <client/hud/hud.qh>

@@ -180,11 +180,11 @@ int Touch_Spec_AssignRole(vector p)
 		if (Touch_PointInCircle(p, Touch_Spec_FlyCenter(false), r))
 			return TOUCH_ROLE_SPEC_DOWN;
 		// The stick flies the camera while observing; following, the view is theirs.
-		if (Touch_InMoveZone(p)
-			|| (autocvar_touch_move_visible && Touch_HitCircle(p, autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size, 1.0)))
+		if (!cvar("vid_keyboard_detected") && (Touch_InMoveZone(p)
+			|| (autocvar_touch_move_visible && Touch_HitCircle(p, autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size, 1.0))))
 			return Touch_RoleOwned(TOUCH_ROLE_MOVE) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_MOVE;
 	}
-	return Touch_RoleOwned(TOUCH_ROLE_LOOK) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_LOOK;
+	return cvar("vid_mouse_confirmed") || Touch_RoleOwned(TOUCH_ROLE_LOOK) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_LOOK;
 }
 
 bool Touch_Spec_FingerFrame(int role, bool first)
@@ -252,7 +252,7 @@ bool Touch_Spec_DrawOverlay(float alpha)
 		return false;
 	if (Touch_Spec_Flying(st))
 	{
-		if (autocvar_touch_move_visible)
+		if (autocvar_touch_move_visible && !cvar("vid_keyboard_detected"))
 			Touch_DrawMoveStick(alpha);
 		float r = Touch_Spec_FlyRadius();
 		Touch_Widget_Button(Touch_Spec_FlyCenter(true), r, "UP", touch_spec_key_up, alpha * 0.9, TOUCH_C_ACCENT);
@@ -288,9 +288,22 @@ string Touch_Spec_ObserverHint(string hint, int status, int choice)
 {
 	if (cvar("_touch_join_waiting"))
 		return "";
-	// Free flight has no speed control in the touch spectator overlay.
-	if (cvar("vid_touchscreen") && status == -1 && choice == 1)
-		return "";
+	if ((cvar("vid_touchscreen") || cvar("vid_touchscreen_detected")) && !cvar("vid_mouse_confirmed") && cvar("vid_keyboard_detected"))
+	{
+		if (status == -1 && choice == 0)
+			return Touch_Spec_BarShown(Touch_Spec_State()) ? "^1Tap ^3>^1 to spectate" : "";
+		if (status != -1 && choice == 1)
+			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3FREE^1 to observe" : "";
+	}
+	if ((cvar("vid_touchscreen") || cvar("vid_touchscreen_detected")) && !cvar("vid_keyboard_detected"))
+	{
+		if (choice == 2 || (status == -1 && choice == 1))
+			return "";
+		if (status == -1)
+			return Touch_Spec_BarShown(Touch_Spec_State()) ? "^1Tap ^3>^1 to spectate" : "";
+		if (choice == 1)
+			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3FREE^1 to observe" : "";
+	}
 	return hint;
 }
 
@@ -302,11 +315,11 @@ string Touch_Spec_TeamHint(string hint, string color)
 	return hint;
 }
 
-string Touch_Spec_NextHint(string hint, int status)
+string Touch_Spec_NextHint(string hint, int status, int choice)
 {
 	if (cvar("_touch_join_waiting"))
 		return "";
-	if (!cvar("vid_touchscreen") || status == -1)
+	if ((!cvar("vid_touchscreen") && !cvar("vid_touchscreen_detected")) || (cvar("vid_keyboard_detected") && cvar("vid_mouse_confirmed")) || status == -1 || choice != 0)
 		return hint;
 	if (!Touch_Spec_BarShown(Touch_Spec_State()))
 		return "";
@@ -317,7 +330,7 @@ string Touch_Spec_JoinHint(string hint)
 {
 	if (cvar("_touch_join_waiting"))
 		return "";
-	if (!cvar("vid_touchscreen"))
+	if ((!cvar("vid_touchscreen") && !cvar("vid_touchscreen_detected")) || cvar("vid_keyboard_detected"))
 		return hint;
 	if (Touch_Spec_BarShown(Touch_Spec_State()))
 		return "^1Tap ^3JOIN^1 to join";

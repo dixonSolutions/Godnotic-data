@@ -163,6 +163,9 @@ void GodnoticGameMenuDialog_fill(entity me)
 		me.TD(me, 1.5, 1, e = makeGodnoticCommandButton(_("Quick menu"), '0 0 0', "quickmenu", COMMANDBUTTON_CLOSE));
 	me.TR(me);
 	me.TR(me);
+		me.TD(me, 1.5, 2, e = TouchGameMenu_SubButton(_("Call a vote"), "TouchVoteCall"));
+	me.TR(me);
+	me.TR(me);
 		// Hosting on the LAN (Multiplayer > Create, LAN box): where others
 		// join, and Stop.
 		me.TD(me, 1.5, 1.4, TouchLan_StatusLabel());

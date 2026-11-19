@@ -200,6 +200,7 @@ void GameTypeVote_DrawGameTypeItem(vector pos, float maxh, float tsize, string g
 
 void MapVote_DrawMapPicture(string pic, vector pos, vector img_size, float theAlpha)
 {
+	if (Touch_MapVote_DrawMissingPicture(pic, pos, img_size, theAlpha)) return; // Touch
 	if (pic == "")
 		drawfill(pos, img_size, '0.5 0.5 0.5', 0.7 * theAlpha, DRAWFLAG_NORMAL);
 	else
@@ -573,7 +574,7 @@ void MapVote_Draw(bool should_draw)
 		vector img_size = endsize * f + startsize * (1 - f);
 		vector img_pos = endpos * f + startpos * (1 - f);
 
-		MapVote_DrawMapPicture(mv_pics[mv_winner - 1], img_pos, img_size, theAlpha);
+		if (Touch_MapVote_HasPicture(mv_pics[mv_winner - 1])) MapVote_DrawMapPicture(mv_pics[mv_winner - 1], img_pos, img_size, theAlpha); // Touch
 
 		if (were_suggesters)
 		{
@@ -653,6 +654,7 @@ void MapVote_CheckPic(string pic, string pk3, int id)
 		mv_preview[id] = true;
 		return;
 	}
+	if (Touch_MapVote_CheckFallback(pic, id)) return; // Touch
 	MapVote_CheckPK3(pic, pk3, id);
 }
 

@@ -371,9 +371,23 @@ void UIB_BuildHome()
 		UIB_Close();
 		UIB_Open("mp", "card");
 			uib_s("title", _("Multiplayer"));
-			uib_s("subtitle", (uib_mp_summary != "") ? uib_mp_summary : _("Join a server, or create a game"));
+			string preview = "";
+			string previewmap = "";
+			string previewsource = cvar_string("_uib_debug_servers");
+			if (previewsource == "") previewsource = "servers.all";
+			int previewcount = uib_window(previewsource, 0, 3, "players", true, "");
+			for (int pi = 0; pi < previewcount; ++pi)
+			{
+				string pm = uib_wcell(pi, "map");
+				if (pi == 0) previewmap = pm;
+				string pn = uib_wcell(pi, "name");
+				string pp = uib_wcell(pi, "players");
+				string px = uib_wcell(pi, "max");
+				preview = strcat(preview, (pi ? "\n" : ""), sprintf("%s · %s · %s", pn, pm, (px != "" && px != "0") ? strcat(pp, "/", px) : pp));
+			}
+			uib_s("subtitle", preview != "" ? preview : (uib_mp_summary != "" ? uib_mp_summary : _("Looking for servers…")));
 			uib_s("icon", "multiplayer");
-			uib_s("image", "pk3:maps/xoylent");
+			if (previewmap != "") uib_s("image", strcat("pk3:maps/", previewmap));
 			uib_s("aspect", "16:9");
 			uib_b("featured", 1);
 			uib_b("live", 1);
@@ -965,6 +979,8 @@ void UIB_ServerParams()
 	uib_param("servers", "search", UIB_VM("mp.search"));
 }
 
+bool UIB_FindServerIn(string source, string address);
+
 void UIB_BuildServers()
 {
 	UIB_ServerParams();
@@ -1035,6 +1051,33 @@ void UIB_BuildServers()
 			uib_j("empty", sprintf("{\"title\":%s,\"text\":%s,\"icon\":\"server\",\"action\":%s}", uib_q(_("No servers available")),
 				uib_q(_("Try refreshing the list.")), UIB_A("refresh", _("Refresh"), "refresh")));
 	UIB_Close();
+	// The map ref is known with the selected server row, so render its picture in
+	// the same snapshot as the selection instead of waiting for a later lookup.
+	string rowSource = cvar_string("_uib_debug_servers");
+	if (rowSource == "") rowSource = "servers.all";
+	if (sel != "" && UIB_FindServerIn(rowSource, sel))
+	{
+		string name = uib_wcell(0, "name");
+		string map = uib_wcell(0, "map");
+		string mode = uib_wcell(0, "mode");
+		string players = uib_wcell(0, "players");
+		string playerDetails = uib_wcell(0, "player_details");
+		string maxplayers = uib_wcell(0, "max");
+		string ping = uib_wcell(0, "ping");
+		UIB_Open("details", "preview");
+			uib_s("title", name != "" ? name : sel);
+			string playcount = ((maxplayers != "" && maxplayers != "0") ? strcat(players, "/", maxplayers) : players);
+			string pingtext = ((ping != "" && stof(ping) > 0) ? sprintf(_("%s ms"), ping) : _("– ms"));
+			uib_s("subtitle", sprintf("%s · %s · %s · %s", map, (mode != "" ? UIB_ModeName(mode) : _("Unknown game type")), playcount, pingtext));
+			if (map != "")
+			{
+				uib_s("image", strcat("pk3:maps/", map));
+				uib_s("aspect", "16:9");
+			}
+			if (playerDetails != "") uib_s("body", playerDetails);
+			uib_j("primary", UIB_AS("server.join", _("Join"), "play", "primary"));
+		UIB_Close();
+	}
 	UIB_Open("join", "actionbar");
 		uib_s("align", "spread");
 		UIB_Open("address", "field");
@@ -1058,17 +1101,22 @@ void UIB_BuildServers()
 }
 
 // one server's row (cells read with uib_wcell(0, ...)), "" if not known
-bool UIB_FindServer(string address)
+bool UIB_FindServerIn(string source, string address)
 {
-	int n = uib_window("servers.all", 0, 16, "", 0, address);
+	int n = uib_window(source, 0, 16, "", 0, address);
 	for (int i = 0; i < n; ++i)
 		if (uib_wkey(i) == address)
 		{
 			if (i)
-				uib_window("servers.all", i, 1, "", 0, address);
+				uib_window(source, i, 1, "", 0, address);
 			return true;
 		}
 	return false;
+}
+
+bool UIB_FindServer(string address)
+{
+	return UIB_FindServerIn("servers.all", address);
 }
 
 // How every screen of a join names a server: "<name> (<address>)", the address alone
@@ -1212,7 +1260,7 @@ void UIB_Join(string addr)
 void UIB_Refresh()
 {
 	cvar_set("net_slist_lan_only", UIB_VMf("mp.lan") ? "1" : "0");
-	refreshhostcache(true);
+	refreshhostcache(false);
 }
 
 // ---------------------------------------------------------------- pause, loading, credits, dialogs
@@ -1343,6 +1391,7 @@ void UIB_BuildPause()
 		uib_f("minItem", 200);
 		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
 		UIB_Button("settings", _("Settings"), UIB_A("settings", _("Settings"), "settings"), "secondary");
+		UIB_Button("vote", _("Call a vote"), UIB_A("vote.open", _("Call a vote"), ""), "secondary");
 		// the engine's action list (_touch_act_*): Join game while watching, Spectate while playing
 		if (cvar("_touch_act_join"))
 			UIB_Button("join", _("Join game"), UIB_A("join.open", _("Join game"), "play"), "secondary");
@@ -1360,6 +1409,29 @@ void UIB_BuildPause()
 			uib_j("action", UIB_AS("disconnect", (hosting ? _("End the game") : _("Leave match")), "disconnect", "destructive"));
 		UIB_Close();
 	UIB_Close();
+	UIB_Done();
+}
+
+void UIB_BuildVoteCall()
+{
+	if (!UIB_Screen("vote.call", _("Call a vote")))
+		return;
+	UIB_Text("note", _("Available votes depend on the server."), "");
+	UIB_Open("votes", "grid");
+		UIB_Button("restart", _("Restart match"), UIB_A("vote.restart", _("Restart match"), ""), "secondary");
+		UIB_Button("endmatch", _("End match"), UIB_A("vote.endmatch", _("End match"), ""), "secondary");
+		UIB_Button("extend", _("More time"), UIB_A("vote.extend", _("More time"), ""), "secondary");
+		UIB_Button("nextmap", _("Next map"), UIB_A("vote.nextmap", _("Next map"), ""), "secondary");
+	UIB_Close();
+	UIB_Open("form", "form");
+		UIB_Open("map", "field");
+			uib_s("label", _("Map name"));
+			uib_s("bind", "vm:vote.map");
+			uib_j("submit", UIB_A("vote.map", _("Vote for this map"), ""));
+		UIB_Close();
+		UIB_Button("mapvote", _("Vote for this map"), UIB_A("vote.map", _("Vote for this map"), ""), "primary");
+	UIB_Close();
+	UIB_Button("help", _("List all vote commands"), UIB_A("vote.help", _("List all vote commands"), ""), "secondary");
 	UIB_Done();
 }
 
@@ -1747,6 +1819,7 @@ void UIB_Build(string id)
 		case "mp.password": UIB_BuildPassword(); return;
 		case "welcome": UIB_BuildWelcome(); return;
 		case "pause": UIB_BuildPause(); return;
+		case "vote.call": UIB_BuildVoteCall(); return;
 		case "loading": UIB_BuildLoading(); return;
 		case "setup": UIB_BuildSetup(); return;
 		case "credits": UIB_BuildCredits(); return;
@@ -1909,12 +1982,13 @@ void UIB_Tick()
 	if ((top == "home" || top == "mp") && uib_gettime(1) > uib_next_tick)
 	{
 		uib_next_tick = uib_gettime(1) + 0.5;
-		if (UIB_ServerSummary())
+		if (UIB_ServerSummary() || top == "home")
 			UIB_Build(top);
-		// while Multiplayer shows: a refresh every 10 s keeps the list live (the engine throttles it)
-		if (top == "mp" && uib_gettime(1) > uib_mp_next_refresh)
+		// Home and Multiplayer share one background query and its cached rows: every
+		// 10 s while the full list shows, every 30 s to keep Home's preview live.
+		if (uib_gettime(1) > uib_mp_next_refresh)
 		{
-			uib_mp_next_refresh = uib_gettime(1) + 10;
+			uib_mp_next_refresh = uib_gettime(1) + (top == "mp" ? 10 : 30);
 			refreshhostcache(false);
 		}
 	}
@@ -1969,7 +2043,7 @@ void UIB_Action(string node, string a, string payload)
 		case "host.close": UIB_LanPopupClose(true); return;
 		case "host.copy": case "host.copylink": case "host.share": return;   // the renderer copied or shared the text
 		case "create": UIB_VMSet("create.from", "mp"); UIB_Push("sp"); return;
-		case "mp": UIB_VMSet("mp.server", ""); UIB_Push("mp"); UIB_Refresh(); uib_mp_next_refresh = uib_gettime(1) + 10; return;
+		case "mp": UIB_Push("mp"); return;
 		case "credits": UIB_OpenTab("credits"); return;
 		case "quit": localcmd("\nquit\n"); return;   // the renderer already confirmed
 		case "quit.confirm": localcmd("\nquit\n"); return;
@@ -2013,6 +2087,20 @@ void UIB_Action(string node, string a, string payload)
 			return;
 		}
 		case "resume": m_hide(); return;
+		case "vote.open": UIB_Push("vote.call"); return;
+		case "vote.restart": localcmd("cmd vote call restart\n"); m_hide(); return;
+		case "vote.endmatch": localcmd("cmd vote call endmatch\n"); m_hide(); return;
+		case "vote.extend": localcmd("cmd vote call extendmatchtime\n"); m_hide(); return;
+		case "vote.nextmap": localcmd("cmd vote call nextmap\n"); m_hide(); return;
+		case "vote.map":
+		{
+			string map = UIB_VM("vote.map");
+			if (!TouchVoteCall_ValidMap(map))
+				uib_toast(_("Enter a valid map name"), "warning", "warning", 3);
+			else { localcmd("cmd vote call gotomap ", map, "\n"); m_hide(); }
+			return;
+		}
+		case "vote.help": localcmd("cmd vote help\ntoggleconsole\n"); m_hide(); return;
 		case "follow": case "next": case "prev": case "free":
 			localcmd(sprintf("\ntouch_action %s\n", a)); m_hide(); return;
 		case "spectate": localcmd("\ntouch_action spectate confirm\n"); m_hide(); return;
@@ -2151,7 +2239,7 @@ float UIB_Event(string ev, string node, string arg, string json)
 			if (node == "lan.host" && UIB_TopScreen() == "lan.host") UIB_LanPopupClose(uib_lanpopup_auto);
 			else if (strstrofs(strcat(" ", uibn_modal, " "), strcat(" ", node, " "), 0) >= 0) UIB_Back();
 			return 1;
-		case "shown": if (node == "mp") UIB_Refresh(); return 1;
+		case "shown": return 1;
 		case "hidden": return 1;
 		case "changed": UIB_RebuildAll(); return 1;
 		case "modpages": UIB_RebuildAll(); return 1;

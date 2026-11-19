@@ -57,5 +57,5 @@ string Touch_Spec_CommandLabel(string command);
 string Touch_Spec_ObserverHint(string hint, int status, int choice);
 string Touch_Spec_TeamHint(string hint, string color);
 // The observer hints on touch: < and > for the next player, JOIN to join.
-string Touch_Spec_NextHint(string hint, int status);
+string Touch_Spec_NextHint(string hint, int status, int choice);
 string Touch_Spec_JoinHint(string hint);

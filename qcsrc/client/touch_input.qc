@@ -298,9 +298,9 @@ string Touch_CommandLabel(string command)
 	if (command == "+jump" && autocvar_touch_jump_visible)
 		return TOUCH_LABEL_JUMP;
 	// Xonotic's own binds use +fire; +attack is the engine name underneath it.
-	if ((command == "+fire" || command == "+attack") && autocvar_touch_fire_visible)
+	if ((command == "+fire" || command == "+attack") && !cvar("vid_mouse_confirmed") && autocvar_touch_fire_visible)
 		return TOUCH_LABEL_FIRE;
-	if (command == "+fire2" && Touch_Fire2Available())
+	if (command == "+fire2" && !cvar("vid_mouse_confirmed") && Touch_Fire2Available())
 		return TOUCH_LABEL_FIRE2;
 	if (command == "+crouch" && autocvar_touch_crouch_visible)
 		return TOUCH_LABEL_CROUCH;
@@ -487,7 +487,7 @@ int Touch_AssignRole(vector p)
 	{
 		if (!Touch_InEdgeDeadzone(p) && Touch_HitRect(p, autocvar_touch_jump_x, autocvar_touch_jump_y, autocvar_touch_jump_size, autocvar_touch_jump_aspect * 1.25, 1.10))
 			return TOUCH_ROLE_RESPAWN;
-		return Touch_RoleOwned(TOUCH_ROLE_LOOK) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_LOOK;
+		return cvar("vid_mouse_confirmed") || Touch_RoleOwned(TOUCH_ROLE_LOOK) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_LOOK;
 	}
 
 	// Spectating, the controls mean what the spectator code reads (touch_spectate.qc).
@@ -516,9 +516,9 @@ int Touch_AssignRole(vector p)
 	if (Touch_InEdgeDeadzone(p))
 		return TOUCH_ROLE_IGNORED;
 
-	if (autocvar_touch_fire_visible && Touch_HitCircle(p, autocvar_touch_fire_x, autocvar_touch_fire_y, autocvar_touch_fire_size, 1.15))
+	if (!cvar("vid_mouse_confirmed") && autocvar_touch_fire_visible && Touch_HitCircle(p, autocvar_touch_fire_x, autocvar_touch_fire_y, autocvar_touch_fire_size, 1.15))
 		return TOUCH_ROLE_FIRE;
-	if (Touch_Fire2Available() && Touch_HitCircle(p, autocvar_touch_fire2_x, autocvar_touch_fire2_y, autocvar_touch_fire2_size, 1.15))
+	if (!cvar("vid_mouse_confirmed") && Touch_Fire2Available() && Touch_HitCircle(p, autocvar_touch_fire2_x, autocvar_touch_fire2_y, autocvar_touch_fire2_size, 1.15))
 		return TOUCH_ROLE_FIRE2;
 	if (autocvar_touch_jump_visible && Touch_HitRect(p, autocvar_touch_jump_x, autocvar_touch_jump_y, autocvar_touch_jump_size, autocvar_touch_jump_aspect, 1.10))
 		return TOUCH_ROLE_JUMP;
@@ -539,14 +539,14 @@ int Touch_AssignRole(vector p)
 	if (autocvar_touch_dodge_visible && Touch_HitCircle(p, autocvar_touch_dodge_x, autocvar_touch_dodge_y, autocvar_touch_dodge_size, 1.10))
 		return TOUCH_ROLE_DODGE;
 
-	if (Touch_InMoveZone(p) || (autocvar_touch_move_visible && Touch_HitCircle(p, autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size, 1.0)))
+	if (!cvar("vid_keyboard_detected") && (Touch_InMoveZone(p) || (autocvar_touch_move_visible && Touch_HitCircle(p, autocvar_touch_move_x, autocvar_touch_move_y, autocvar_touch_move_size, 1.0))))
 	{
 		if (Touch_RoleOwned(TOUCH_ROLE_MOVE))
 			return TOUCH_ROLE_IGNORED;
 		return TOUCH_ROLE_MOVE;
 	}
 
-	if (Touch_InLookZone(p))
+	if (!cvar("vid_mouse_confirmed") && Touch_InLookZone(p))
 	{
 		if (Touch_RoleOwned(TOUCH_ROLE_LOOK))
 			return TOUCH_ROLE_IGNORED;
@@ -555,7 +555,7 @@ int Touch_AssignRole(vector p)
 
 	// Upper-left (and other residual gaps) would otherwise be dead: move needs
 	// y>0.42 and look needs x≥look_zone_left (B5). Prefer LOOK for aim.
-	if (Touch_RoleOwned(TOUCH_ROLE_LOOK))
+	if (cvar("vid_mouse_confirmed") || Touch_RoleOwned(TOUCH_ROLE_LOOK))
 		return TOUCH_ROLE_IGNORED;
 	return TOUCH_ROLE_LOOK;
 }
@@ -849,6 +849,7 @@ void Touch_DemoteCancelled(void)
 // (TouchHUD_LookWithoutControls), which knows nothing of this HUD. The engine
 // slots this layer has given a role, as a bit mask, so that a finger on the
 // strip, its grip or a pill does not also turn the view.
+int touch_devices_last = -1, touch_input_mode_last = -1;
 void Touch_ReportDeskClaim(int mask)
 {
 	if (mask == touch_desk_claim_sent)
@@ -940,6 +941,12 @@ void Touch_Frame(void)
 	// can hold is one the controls have too.
 	touch_desk_on = false;
 	Touch_ReportDeskClaim(0);
+	int devices = (cvar("vid_keyboard_detected") ? 1 : 0) + (cvar("vid_mouse_confirmed") ? 2 : 0);
+	int mode = Touch_Mode();
+	if (touch_devices_last != devices || touch_input_mode_last != mode)
+		Touch_ReleaseAll();
+	touch_devices_last = devices;
+	touch_input_mode_last = mode;
 
 	Touch_Look_SetOwnership(Touch_Active());
 	Touch_PollFingers();

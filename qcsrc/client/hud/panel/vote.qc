@@ -1,6 +1,7 @@
 #include "vote.qh"
 
 #include <client/draw.qh>
+#include <client/touch_hud.qh> // Touch: vote labels
 
 // Vote (#9)
 
@@ -150,8 +151,10 @@ void HUD_Vote(bool should_draw)
 	// print the yes/no counts
 	float height = (yes_on_top ? 1.3/8 : 1.5/8);
 	s = sprintf("^2%s ^7(%d)", getcommandkey_forcename(_("Yes"), "vyes"), vote_yescount);
+	s = Touch_Hud_VoteLabel(s, true, vote_yescount); // Touch: hide key names
 	drawcolorcodedstring_aspect(pos + eY * (4/8) * mySize.y, s, vec2(0.5 * mySize.x, height * mySize.y), panel_fg_alpha, DRAWFLAG_NORMAL);
 	s = sprintf("^1%s ^7(%d)", getcommandkey_forcename(_("No"), "vno"), vote_nocount);
+	s = Touch_Hud_VoteLabel(s, false, vote_nocount); // Touch: hide key names
 	drawcolorcodedstring_aspect(pos + vec2(0.5 * mySize.x, (4/8) * mySize.y), s, vec2(0.5 * mySize.x, height * mySize.y), panel_fg_alpha, DRAWFLAG_NORMAL);
 	// overlap with the bars by up to 0.1/8 if yes_on_top or otherwise 0.3/8
 	// this overlap looks fine only since the bar images have padding

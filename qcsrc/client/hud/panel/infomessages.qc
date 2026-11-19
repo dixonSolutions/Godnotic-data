@@ -130,7 +130,7 @@ void HUD_InfoMessages(bool should_draw)
 						s = sprintf(_("^1Press ^3%s^1 for gametype info"), getcommandkey(_("server info"), "+show_info"));
 						break;
 				}
-				s = Touch_Spec_NextHint(s, spectatee_status); // Touch: < and > change player
+				s = Touch_Spec_NextHint(s, spectatee_status, img_cur_msg[img_curr_group] % 3); // Touch: < and > change player
 				s = Touch_Spec_ObserverHint(s, spectatee_status, img_cur_msg[img_curr_group] % 3); // Touch:
 				InfoMessage(s);
 			}

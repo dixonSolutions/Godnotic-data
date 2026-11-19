@@ -75,3 +75,7 @@ float Touch_ChromeAlpha(float alpha);
 float Touch_VoteTop(float top);
 bool Touch_MatchEndShortcut(int type, float key);
 bool Touch_MatchEndChatKey(int type, float key);
+
+bool Touch_MapVote_DrawMissingPicture(string pic, vector pos, vector img_size, float alpha);
+bool Touch_MapVote_HasPicture(string pic);
+bool Touch_MapVote_CheckFallback(string pic, int id);

@@ -10,6 +10,7 @@
 #include "dialog_touch_asset_fetch.qh"
 #include "dialog_touch_gamemenu.qh"
 #include "dialog_touch_lan.qh" // Touch: LAN games
+#include "dialog_touch_votecall.qh" // Touch: call votes
 #include "dialog_touch_mods.qh" // Touch: Mods manager
 #include "dialog_hudsetup_exit.qh"
 #include "dialog_hudpanel_notification.qh"
@@ -338,6 +339,8 @@ void MainWindow_configureMainWindow(entity me)
 	i = NEW(GodnoticGameMenuDialog); // Touch: finger-sized game menu
 	i.configureDialog(i); // Touch
 	me.addItemCentered(me, i, i.intendedWidth * eX + i.intendedHeight * eY, SKINALPHAS_MAINMENU_z); // Touch
+
+	TouchVoteCall_ConfigureDialogs(me); // Touch: call a vote
 
 	i = NEW(GodnoticJoinDialog); // Touch: finger-sized join dialog
 	i.configureDialog(i); // Touch

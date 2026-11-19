@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+
+// Call a vote from a touchscreen: finger-sized buttons for the votes players
+// call most (restart, end the match, more time, skip to the next map), a map
+// name for "change map", and a list of everything else the server offers
+// (vote help, printed to the console). Opened from the game menu.
+#include "rootdialog.qh"
+bool TouchVoteCall_ValidMap(string map);
+void TouchVoteCall_ConfigureDialogs(entity mainwindow);
+CLASS(GodnoticVoteCallDialog, XonoticRootDialog)
+	METHOD(GodnoticVoteCallDialog, fill, void(entity));
+	METHOD(GodnoticVoteCallDialog, configureDialog, void(entity));
+	ATTRIB(GodnoticVoteCallDialog, title, string, _("Call a vote"));
+	ATTRIB(GodnoticVoteCallDialog, color, vector, SKINCOLOR_DIALOG_QUIT);
+	ATTRIB(GodnoticVoteCallDialog, intendedWidth, float, 0.56);
+	ATTRIB(GodnoticVoteCallDialog, rows, float, 13);
+	ATTRIB(GodnoticVoteCallDialog, columns, float, 2);
+	ATTRIB(GodnoticVoteCallDialog, name, string, "TouchVoteCall");
+	ATTRIB(GodnoticVoteCallDialog, requiresConnection, bool, true);
+ENDCLASS(GodnoticVoteCallDialog)

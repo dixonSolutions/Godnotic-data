@@ -471,6 +471,7 @@ float RB_LayoutCard(string id, float x, float y, float w, float region, float ih
 	string img = uib_get(id, "image");
 	if (img == "") ih = 0;
 	float th = D(62);
+	if (id == "home/tiles/mp") th += D(30);
 	if (stof(uib_get(id, "meta.#")) > 0) th += D(28);
 	entity e = RB_Item("card", id, region, eX * x + eY * y, eX * w + eY * (ih + th));
 	if (!e) return ih + th;
@@ -563,7 +564,7 @@ float RB_LayoutGrid(string id, float x, float y, float w, float region)
 	float cw = (w - (cols - 1) * gap) / cols;
 	float rowy = y, rowh = 0;
 	// ... and as tall as the page allows, so Home needs no scrolling
-	float fit = rg_s[0].y - y - D(featured ? 12 : 30) - D(62);
+	float fit = rg_s[0].y - y - D(featured ? 12 : 30) - D(featured ? 92 : 62);
 	int rowfirst = rb_n;
 	// one image height for the whole grid, so images and icons line up
 	bool anyimg = false;
@@ -2118,7 +2119,13 @@ void RB_DrawItem(entity e, int idx)
 			drawfont = FONT_USER + 3;
 			RB_TextFit(eX * tx + eY * ty, e.rb_t1, D(16), p.x + s.x - tx - D(12), RB_TEXT, a);
 			drawfont = FONT_USER;
-			RB_TextFit(eX * tx + eY * (ty + D(22)), e.rb_t2, D(12), p.x + s.x - tx - D(12), RB_MUTED, a);
+			if (e.rb_id == "home/tiles/mp")
+			{
+				int lines = tokenizebyseparator(e.rb_t2, "\n");
+				for (int li = 0; li < lines && li < 3; ++li)
+					RB_TextFit(eX * tx + eY * (ty + D(22 + li * 15)), argv(li), D(12), p.x + s.x - tx - D(12), RB_MUTED, a);
+			}
+			else RB_TextFit(eX * tx + eY * (ty + D(22)), e.rb_t2, D(12), p.x + s.x - tx - D(12), RB_MUTED, a);
 			int nm = stof(uib_get(e.rb_id, "meta.#"));
 			float mx = p.x + D(16);
 			for (int i = 0; i < nm && i < 4; ++i)
