@@ -698,9 +698,32 @@ void UIB_SecUpdatesAndySU()
 	string staged = TouchAndySU_extra("staged"); // also while a newer one downloads: it still applies
 	if (staged != "")
 	{
-		UIB_Section("staged", sprintf(_("Version %s is ready"), staged), false);
-			UIB_Text("about", _("Downloaded and checked. It applies live in a few seconds; if this release cannot be swapped in, the game restarts."), "caption");
-			UIB_Button("apply", _("Apply now"), UIB_A("updates.apply", _("Apply now"), "check"), "primary");
+		// apply_how (Android): live / engine = swapped into the running game; done = its game and
+		// data already run, the app's own screens follow at the next start; restart = nothing in it
+		// can be swapped in, so it waits for the next start or the player's Restart now. Apply live
+		// never restarts; only Restart now does, and it says so.
+		string how = TouchAndySU_extra("apply_how");
+		string why = TouchAndySU_extra("apply_why");
+		string title = (how == "done") ? sprintf(_("Version %s is running"), staged) : sprintf(_("Version %s is ready"), staged);
+		UIB_Section("staged", title, false);
+			if (how == "")
+			{
+				// an older Android side that does not say how
+				UIB_Text("about", _("Downloaded and checked. It applies live in a few seconds; if this release cannot be swapped in, the game restarts."), "caption");
+				UIB_Button("apply", _("Apply now"), UIB_A("updates.apply", _("Apply now"), "check"), "primary");
+			}
+			else if (how == "restart" || how == "done")
+			{
+				UIB_Text("about", why, "caption");
+				UIB_Button("restart", _("Restart now"), UIB_A("updates.restart", _("Restart now"), "refresh"),
+					(how == "restart") ? "primary" : "tonal");
+			}
+			else
+			{
+				if (why == "") why = _("Downloaded and checked. It swaps in while you stay where you are.");
+				UIB_Text("about", why, "caption");
+				UIB_Button("apply", _("Apply live"), UIB_A("updates.apply", _("Apply live"), "check"), "primary");
+			}
 		UIB_Close();
 	}
 	else if (state == "available")
@@ -1217,6 +1240,7 @@ bool UIB_SettingsAction(string node, string a, string payload)
 			UIB_RebuildAll();
 			return true;
 		case "updates.apply": TouchAndySU_request("apply"); return true;
+		case "updates.restart": TouchAndySU_request("restart"); return true;
 		case "updates.download": TouchAndySU_request("download"); return true;
 		case "updates.install": TouchUpdate_request("install"); return true;
 		case "crash.reports": TouchCrashReports_request("list"); return true;
