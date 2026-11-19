@@ -951,6 +951,19 @@ void TouchSheet_keysFollowField(entity f)
 
 void TouchSheet_preDraw()
 {
+	// Keep the live match visible behind the menu while it continues online.
+	if (gamestatus & GAME_CONNECTED)
+	{
+		float scrim = cvar("_touch_menu_scrim");
+		if (scrim > 0)
+		{
+			float a = draw_alpha;
+			draw_reset_full();
+			draw_Fill('0 0 0', '1 1 0', '0 0 0', bound(0, scrim * 0.01, 1) * a);
+			draw_reset_cropped();
+			draw_alpha = a;
+		}
+	}
 	if (!touch_menu_on)
 		return;
 	// Where the engine's keys start, in the main window's units.
