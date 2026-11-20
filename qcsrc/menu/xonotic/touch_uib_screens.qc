@@ -314,6 +314,15 @@ float UIB_ModeBots(string mode) { return bound(0, cvar(UIB_ModeBotCvar(mode)), (
 
 // Home: the banner at the top, scaled to the window, the three cards in one row
 // under it, and the bar of Settings, Credits and Quit along the bottom.
+// Whether a map's levelshot is in the game data (its picture can be shown now).
+bool UIB_MapHasPicture(string m)
+{
+	if (m == "")
+		return false;
+	string base = strcat("maps/", m);
+	return fexists(strcat(base, ".jpg")) || fexists(strcat(base, ".png")) || fexists(strcat(base, ".tga"));
+}
+
 void UIB_BuildHome()
 {
 	if (!UIB_Screen("home", _("Godnotic")))
@@ -375,19 +384,34 @@ void UIB_BuildHome()
 			string previewmap = "";
 			string previewsource = cvar_string("_uib_debug_servers");
 			if (previewsource == "") previewsource = "servers.all";
-			int previewcount = uib_window(previewsource, 0, 3, "players", true, "");
-			for (int pi = 0; pi < previewcount; ++pi)
+			// six rows asked, three lines shown: a server listed under two addresses (IPv4 and IPv6) is one line
+			int previewcount = uib_window(previewsource, 0, 6, "players", true, "");
+			int previewlines = 0;
+			for (int pi = 0; pi < previewcount && previewlines < 3; ++pi)
 			{
 				string pm = uib_wcell(pi, "map");
-				if (pi == 0) previewmap = pm;
 				string pn = uib_wcell(pi, "name");
 				string pp = uib_wcell(pi, "players");
 				string px = uib_wcell(pi, "max");
-				preview = strcat(preview, (pi ? "\n" : ""), sprintf("%s · %s · %s", pn, pm, (px != "" && px != "0") ? strcat(pp, "/", px) : pp));
+				string line = sprintf("%s · %s · %s", pn, pm, (px != "" && px != "0") ? strcat(pp, "/", px) : pp);
+				if (strstrofs(strcat("\n", preview, "\n"), strcat("\n", line, "\n"), 0) >= 0)
+					continue;
+				// the first listed server whose map has a picture here (a map that is not installed has
+				// none: the card would be a bare panel)
+				if (previewmap == "" && UIB_MapHasPicture(pm)) previewmap = pm;
+				preview = strcat(preview, (previewlines ? "\n" : ""), line);
+				++previewlines;
 			}
-			uib_s("subtitle", preview != "" ? preview : (uib_mp_summary != "" ? uib_mp_summary : _("Looking for servers…")));
+			uib_s("subtitle", preview != "" ? preview : _("No servers yet"));
 			uib_s("icon", "multiplayer");
-			if (previewmap != "") uib_s("image", strcat("pk3:maps/", previewmap));
+			// the top server's map picture, or one of the card's usual ones that is installed:
+			// never a card without a picture
+			if (previewmap == "")
+			{
+				previewmap = "xoylent";
+				if (!UIB_MapHasPicture(previewmap)) previewmap = UIB_MapHasPicture("stormkeep") ? "stormkeep" : "afterslime";
+			}
+			uib_s("image", strcat("pk3:maps/", previewmap));
 			uib_s("aspect", "16:9");
 			uib_b("featured", 1);
 			uib_b("live", 1);
@@ -992,10 +1016,8 @@ void UIB_BuildServers()
 		return;
 	uib_s("kind", "page");
 	UIB_ServerSummary();
-	if (uib_mp_summary != "")
-		uib_s("subtitle", cvar("_slist_refreshing") ? sprintf(_("%s · refreshing…"), uib_mp_summary) : uib_mp_summary);
-	else if (cvar("_slist_refreshing"))
-		uib_s("subtitle", _("Looking for servers…"));
+	// no loading text: the rows (cached ones first) or a plain empty state
+	uib_s("subtitle", uib_mp_summary != "" ? uib_mp_summary : _("No servers yet"));
 	uib_j("header", "{\"collapsible\":true}");
 	UIB_Open("bar", "toolbar");
 		UIB_Open("search", "field");
@@ -1034,7 +1056,7 @@ void UIB_BuildServers()
 		uib_s("density", "compact");
 		uib_s("display", "table");
 		uib_s("rowHeight", "compact");
-		uib_s("state", cvar("_slist_refreshing") ? "loading" : "ready");
+		uib_s("state", "ready");   // never "loading": the rows (cached first) or the empty state
 		uib_b("live", 1);
 		uib_j("rowSelect", UIB_A("server.select", _("Choose"), "check"));
 		uib_j("rowPrimary", UIB_AS("server.join", _("Join"), "play", "primary"));
@@ -1254,6 +1276,10 @@ void UIB_Join(string addr)
 		}
 	}
 	UIB_RememberOrigin();
+	// the chosen row and the typed address belong to this join: back from the match the list is
+	// whole again, with nothing chosen
+	UIB_VMSet("mp.server", "");
+	UIB_VMSet("mp.address", "");
 	localcmd(sprintf("\nconnect \"%s\"\n", addr));
 }
 
@@ -2043,7 +2069,7 @@ void UIB_Action(string node, string a, string payload)
 		case "host.close": UIB_LanPopupClose(true); return;
 		case "host.copy": case "host.copylink": case "host.share": return;   // the renderer copied or shared the text
 		case "create": UIB_VMSet("create.from", "mp"); UIB_Push("sp"); return;
-		case "mp": UIB_Push("mp"); return;
+		case "mp": UIB_VMSet("mp.server", ""); UIB_VMSet("mp.address", ""); UIB_Push("mp"); return;
 		case "credits": UIB_OpenTab("credits"); return;
 		case "quit": localcmd("\nquit\n"); return;   // the renderer already confirmed
 		case "quit.confirm": localcmd("\nquit\n"); return;
