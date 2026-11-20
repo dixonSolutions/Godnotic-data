@@ -71,7 +71,7 @@ string UIB_SecHelp(string k)
 		case "touch": return _("Presets, HUD, aim assist, auto-shoot, tactics");
 		case "esp": return _("Offline matches only");
 		case "player": return _("Name and colours");
-		case "privacy": return _("Statistics and identity");
+		case "privacy": return _("Statistics, identity, web players");
 		case "updates": return _("Version, checks and downloads");
 		case "data": return _("Game data and downloads");
 		case "menu": return _("Size and layout");
@@ -564,6 +564,15 @@ void UIB_SecPrivacy()
 	UIB_Choice("tracking", _("Statistics"), "cvar:cl_allow_uidtracking", "segmented", UIB_Opts2("0", _("Off"), "1", _("On")), _("Lets XonStat link your matches to your player ID"));
 	UIB_Choice("ranking", _("Rankings"), "cvar:cl_allow_uidranking", "segmented", UIB_Opts2("0", _("Off"), "1", _("On")), _("Lets your player ID appear in leaderboards"));
 	UIB_Choice("name", _("Show my name in records"), "cvar:cl_allow_uid2name", "segmented", UIB_Opts2("0", _("Off"), "1", _("On")), "");
+	// The web relay (engine touch_bridge_relay_engine.c): only engines built with it have
+	// the cvar (desktop Linux today; not the browser itself). Off unless the player turns it on.
+	if (cvar_type("bridge_relay") & CVAR_TYPEFLAG_ENGINE)
+	{
+		UIB_Switch("webrelay", _("Let web players connect through this device"), "cvar:bridge_relay",
+			_("While Godnotic runs, players in a browser can reach online servers through this device. It uses your upload, and they and the public signaling service see your IP address"));
+		if (cvar("bridge_relay"))
+			UIB_Text("webrelay_status", sprintf(_("Web relay: %s"), cvar_string("bridge_relay_status")), "caption");
+	}
 }
 
 // A switch the player flipped shows their value until the updater's status agrees (it serves
