@@ -100,6 +100,18 @@ bool UIB_Wanted()
 	return cvar("menu_touch_uib") || uib_native();
 }
 
+// The engine's own window shows the menu: there is no native renderer, or the
+// desktop app (backend mode) is in a match, where its window hides behind the
+// game and the pause screen has to come up over the game itself.
+bool UIB_DrawsHere()
+{
+	float nat = uib_native();
+	if (nat == 1) return false;
+	if (nat == 2) return uibn_context == "game";
+	return cvar("menu_touch_uib") != 0;
+}
+
+
 string UIB_TopScreen()
 {
 	string s = (uibn_modal != "") ? uibn_modal : uibn_stack;
@@ -379,19 +391,29 @@ void UIB_BuildHome()
 			// twelve rows asked, six lines shown: a server listed under two addresses (IPv4 and IPv6) is one line
 			int previewcount = uib_window(previewsource, 0, 12, "players", true, "");
 			int previewlines = 0;
+			string previewrows = "";
 			for (int pi = 0; pi < previewcount && previewlines < 6; ++pi)
 			{
 				string pm = uib_wcell(pi, "map");
 				string pn = uib_wcell(pi, "name");
 				string pp = uib_wcell(pi, "players");
 				string px = uib_wcell(pi, "max");
-				string line = sprintf("%s · %s · %s", pn, pm, (px != "" && px != "0") ? strcat(pp, "/", px) : pp);
+				string pc = (px != "" && px != "0") ? strcat(pp, "/", px) : pp;
+				string line = sprintf("%s · %s · %s", pn, pm, pc);
 				if (strstrofs(strcat("\n", preview, "\n"), strcat("\n", line, "\n"), 0) >= 0)
 					continue;
 				preview = strcat(preview, (previewlines ? "\n" : ""), line);
+				previewrows = strcat(previewrows, (previewlines ? "," : ""), sprintf("[%s,%s,%s]", uib_q(pn), uib_q(pm), uib_q(pc)));
 				++previewlines;
 			}
+			// The same table as the Multiplayer screen, smaller: renderers that know `display: table`
+			// draw `columns` and `rows` where the other cards have their picture, with the title in
+			// the card's bottom bar like theirs. `subtitle` keeps the rows as lines for the others.
 			uib_s("subtitle", preview);
+			uib_s("display", "table");
+			uib_j("columns", sprintf("[%s,%s,%s]", uib_q(_("Server")), uib_q(_("Map")), uib_q(_("Players"))));
+			uib_j("rows", strcat("[", previewrows, "]"));
+			uib_s("summary", uib_mp_summary);   // the bar's second line: how many servers and players
 			uib_b("featured", 1);
 			uib_b("live", 1);
 			uib_j("primary", UIB_A("mp", _("Open"), "chevron"));

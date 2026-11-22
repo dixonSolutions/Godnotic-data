@@ -3143,7 +3143,7 @@ void TouchUIB_Classic(string itemname)
 {
 	if (itemname == "" || itemname == "nexposee")
 		return;
-	if (!UIB_EngineHasBridge() || !cvar("menu_touch_uib") || uib_native())
+	if (!UIB_EngineHasBridge() || !UIB_DrawsHere())
 		return;
 	rb_classic = 1;
 	rb_classic_seen = 0;
@@ -3207,9 +3207,9 @@ bool TouchUIB_Draw(float alpha)
 {
 	if (!UIB_EngineHasBridge())
 		return false;
-	if (uib_native())
+	if (uib_native() && !UIB_DrawsHere())
 		return true;   // a native renderer shows the menu: describe, do not draw
-	if (!cvar("menu_touch_uib"))
+	if (!UIB_DrawsHere())
 	{
 		// the classic menu shows its own "Could not join" again
 		if (uib_inited && !cvar("touch_joinfail_dialog")) cvar_set("touch_joinfail_dialog", "1");
@@ -3431,7 +3431,7 @@ int RB_NextFocus(int from, float dir)
 
 bool TouchUIB_KeyDown(float key, float ascii)
 {
-	if (!UIB_EngineHasBridge() || !cvar("menu_touch_uib") || uib_native() || rb_classic)
+	if (!UIB_EngineHasBridge() || !UIB_DrawsHere() || rb_classic)
 		return false;
 	if (rb_keycap_id != "")
 	{
@@ -3521,7 +3521,7 @@ bool TouchUIB_KeyDown(float key, float ascii)
 
 bool TouchUIB_KeyUp(float key, float ascii)
 {
-	if (!UIB_EngineHasBridge() || !cvar("menu_touch_uib") || uib_native() || rb_classic)
+	if (!UIB_EngineHasBridge() || !UIB_DrawsHere() || rb_classic)
 		return false;
 	if (key == K_MOUSE1 || key == K_MOUSE2)
 	{

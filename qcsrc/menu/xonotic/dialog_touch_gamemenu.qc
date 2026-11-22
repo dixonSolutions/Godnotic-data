@@ -36,7 +36,7 @@ string TouchGameMenu_Route(string itemname)
 		// up under our pause screen (web does not detect a touchscreen, so it
 		// never became the finger-sized one). m_goto(nexposee) is no dialog:
 		// the bridge renderer draws the pause screen in its place.
-		if (UIB_Wanted() && !uib_native())
+		if (UIB_Wanted() && uib_native() != 1)   // the desktop app (2) hides its window in a match
 			return "nexposee";
 		if (TouchGameMenu_Wanted())
 			return "TouchGameMenu";

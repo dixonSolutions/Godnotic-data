@@ -133,7 +133,7 @@ void UIB_Button(string key, string label, string actionjson, string style)
 	uib_node(key, "button");
 	uib_s("label", label);
 	uib_j("action", actionjson);
-	uib_s("style", style);
+	if (style != "") uib_s("style", style);   // no style: the renderer's default, never ""
 	uib_end();
 }
 

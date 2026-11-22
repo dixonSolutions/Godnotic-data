@@ -20,6 +20,7 @@ string uib_ids2[16];   // scratch (settings)
 
 void UIB_Init();
 bool UIB_Wanted();     // a renderer (native or QuakeC) shows the descriptions
+bool UIB_DrawsHere();  // the QuakeC renderer draws them in the engine's window
 void UIB_Push(string id);
 void UIB_Modal(string id);
 void UIB_Back();
