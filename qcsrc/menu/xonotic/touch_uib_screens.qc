@@ -357,6 +357,8 @@ void UIB_BuildHome()
 		UIB_Open("sp", "card");
 			uib_s("title", _("Singleplayer"));
 			uib_s("subtitle", sprintf(((bots == 1) ? _("%s · %s · %d bot") : _("%s · %s · %d bots")), UIB_MapTitle(map), UIB_ModeName(mode), bots));
+			// the same details as one line of equal cells (title on top, picture below); `subtitle` is for renderers without `tags`
+			uib_j("tags", sprintf("[%s,%s,%s]", uib_q(UIB_MapTitle(map)), uib_q(UIB_ModeName(mode)), uib_q(sprintf(((bots == 1) ? _("%d bot") : _("%d bots")), bots))));
 			uib_s("icon", "singleplayer");
 			uib_s("image", strcat("pk3:maps/", map));
 			uib_s("aspect", "16:9");
@@ -368,6 +370,7 @@ void UIB_BuildHome()
 			if (campaign_entries > 0)
 			{
 				uib_s("subtitle", sprintf(_("Level %d of %d · %s"), uib_camp_index + 1, campaign_entries, UIB_CampaignLevelTitle(uib_camp_index)));
+				uib_j("tags", sprintf("[%s,%s]", uib_q(sprintf(_("Level %d of %d"), uib_camp_index + 1, campaign_entries)), uib_q(UIB_CampaignLevelTitle(uib_camp_index))));
 				uib_s("image", strcat("pk3:maps/", campaign_mapname[uib_camp_index]));
 				uib_f("progress", uib_camp_index / campaign_entries);
 			}

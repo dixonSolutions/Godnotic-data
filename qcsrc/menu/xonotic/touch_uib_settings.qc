@@ -387,7 +387,8 @@ void UIB_SecGame()
 	UIB_Close();
 	UIB_Section("content", _("Content"), true);
 		UIB_Switch("gentle", _("Gentle mode"), "cvar:cl_gentle", _("No blood or gibs"));
-		UIB_Switch("autojoin", _("Always auto-join"), "cvar:touch_always_autojoin", "");
+		UIB_Switch("autojoin", _("Always auto-join"), "cvar:touch_always_autojoin", _("Go straight into the game on joining a server or starting a local game, without the team and spectator question"));
+		UIB_Choice("autoteam", _("Default team"), "cvar:touch_autojoin_team", "dropdown", strcat("[", UIB_Opt("auto", _("Auto")), ",", UIB_Opt("red", _("Red")), ",", UIB_Opt("blue", _("Blue")), ",", strcat(UIB_Opt("yellow", _("Yellow")), ",", UIB_Opt("pink", _("Pink")), "]")), _("The team Auto-join asks for in team games; Auto lets the server balance. A team the server does not offer falls back to Auto"));
 	UIB_Close();
 	UIB_Section("lan", _("LAN games"), true);
 		UIB_Switch("lanpopup", _("Close the address popup when someone joins"), "cvar:touch_lan_popup_autoclose", _("When you host on LAN, the popup with your addresses goes away by itself when the first player joins"));

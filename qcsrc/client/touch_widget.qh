@@ -40,10 +40,13 @@ void Touch_Widget_Key(vector center, vector half, string label, bool pressed,
 // Text input field. Draws the caret itself, since the engine's text input is not
 // reachable from a touch-only session.
 void Touch_Widget_Field(vector center, vector half, string text, string placeholder,
-	float alpha, vector accent);
+	float alpha, vector accent, int caret);
 
 // Top-bar chrome (console, pause): same language as the action controls but
 // quieter at rest, because these are rarely-used utilities that must not
 // compete with the crosshair.
 void Touch_Widget_ChromePill(vector center, vector half, string label, bool pressed,
 	float alpha, vector accent);
+
+int Touch_Widget_FieldHit(float x);
+void Touch_Widget_FieldTouched(void);

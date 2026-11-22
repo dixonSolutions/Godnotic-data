@@ -243,8 +243,14 @@ void Touch_Widget_Key(vector center, vector half, string label, bool pressed,
 	Touch_Shape_Label(center, fs, label, TOUCH_C_INK, alpha * TOUCH_A_INK);
 }
 
+float touch_field_left;
+float touch_field_fs;
+int touch_field_start;
+string touch_field_text;
+float touch_field_edit_time;
+
 void Touch_Widget_Field(vector center, vector half, string text, string placeholder,
-	float alpha, vector accent)
+	float alpha, vector accent, int caret)
 {
 	if (half.x < 2 || half.y < 2)
 		return;
@@ -270,25 +276,72 @@ void Touch_Widget_Field(vector center, vector half, string text, string placehol
 		Touch_DebugAddFills(1);
 	}
 
-	string shown = empty ? placeholder : text;
+	// The caret is somewhere in the text, not only at the end. The part left of it
+	// scrolls from the front when it does not fit; what is right of it fills the
+	// rest of the room.
 	float left = center.x - half.x + pad;
-	// Long messages scroll rather than wrap: the caret must stay visible, and a
-	// field that grew taller would shove the keyboard off screen.
 	float room = half.x * 2 - pad * 2;
-	while (shown != "" && Touch_Shape_LabelWidth(fs, shown) > room)
-		shown = substring(shown, 1, strlen(shown) - 1);
+	if (caret < 0 || caret > strlen(text))
+		caret = strlen(text);
+	string before = substring(text, 0, caret);
+	string after = substring(text, caret, strlen(text) - caret);
+	int start = 0;
+	while (before != "" && Touch_Shape_LabelWidth(fs, before) > room)
+	{
+		before = substring(before, 1, strlen(before) - 1);
+		start += 1;
+	}
+	float used = Touch_Shape_LabelWidth(fs, before);
+	while (after != "" && used + Touch_Shape_LabelWidth(fs, after) > room)
+		after = substring(after, 0, strlen(after) - 1);
+	// where a tap in the field lands (Touch_Widget_FieldHit)
+	touch_field_left = left;
+	touch_field_fs = fs;
+	touch_field_start = start;
+	strcpy(touch_field_text, text);
+	string shown = empty ? placeholder : strcat(before, after);
+	if (empty)
+		while (shown != "" && Touch_Shape_LabelWidth(fs, shown) > room)
+			shown = substring(shown, 0, strlen(shown) - 1);
 
 	Touch_Shape_LabelAligned(eX * left + eY * center.y, fs, shown, -1,
 		(empty ? TOUCH_C_RIM : TOUCH_C_INK), alpha * (empty ? TOUCH_A_GHOST * 3 : TOUCH_A_INK));
 
 	// Blinking caret at a 1 Hz duty cycle: present enough to mark the insertion
-	// point, quiet enough not to pull the eye off the keyboard.
-	if (Touch_Shape_Ready() && (time - floor(time)) < 0.6)
+	// point, quiet enough not to pull the eye off the keyboard. It restarts solid
+	// after each edit or move, so it never vanishes while the player is working.
+	if (Touch_Shape_Ready() && (time - touch_field_edit_time < 0.6 || (time - floor(time)) < 0.6))
 	{
-		float caret_x = left + Touch_Shape_LabelWidth(fs, shown) + max(1, fs * 0.08);
+		float caret_x = left + (empty ? 0 : used) + max(1, fs * 0.08);
 		Touch_Shape_RRect(eX * caret_x + eY * center.y,
 			eX * max(1, fs * 0.06) + eY * (fs * 0.55), 1, accent, alpha * TOUCH_A_INK);
 	}
+}
+
+// The text index a tap at screen x lands on in the field drawn last: the gap
+// between two characters nearest to it.
+int Touch_Widget_FieldHit(float x)
+{
+	int n = strlen(touch_field_text), i;
+	float best = 1000000;
+	float dx;
+	int at = touch_field_start;
+	for (i = touch_field_start; i <= n; i += 1)
+	{
+		dx = fabs(touch_field_left + Touch_Shape_LabelWidth(touch_field_fs,
+			substring(touch_field_text, touch_field_start, i - touch_field_start)) - x);
+		if (dx < best)
+		{
+			best = dx;
+			at = i;
+		}
+	}
+	return at;
+}
+
+void Touch_Widget_FieldTouched(void)
+{
+	touch_field_edit_time = time;
 }
 
 // Flatter than the gameplay controls — no elevation shadow — because chrome

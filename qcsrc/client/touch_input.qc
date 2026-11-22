@@ -475,6 +475,9 @@ int Touch_AssignRole(vector p)
 	if (pills && Touch_Chat_PillHit(p))
 		return TOUCH_ROLE_CHAT;
 
+	if (Touch_ChatLog_Hit(p)) // the chat log's scroll box and export icon (touch_chat.qc)
+		return TOUCH_ROLE_CHAT;
+
 	if (pills && Touch_Scores_PillHit(p))
 		return TOUCH_ROLE_SCORES;
 
@@ -892,6 +895,7 @@ void Touch_DeskFrame(void)
 void Touch_Frame(void)
 {
 	Touch_EnsureReady();
+	Touch_Roster_Publish(); // the @ list reads the players and spectators from here (touch_chat.qc)
 	Touch_Mode_PublishHints();
 	touch_debug_fills = 0;
 	Touch_TickDebugCmds();

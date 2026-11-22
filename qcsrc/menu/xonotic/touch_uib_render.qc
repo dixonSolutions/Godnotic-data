@@ -466,11 +466,51 @@ float RB_AspectH(string a, float w)
 	return w * 9 / 16;
 }
 
+// Home's cards: the title on top, under it the details as one line of equal cells with
+// separators (`tags`; a `display: table` card has one such line per row: name, map, players),
+// then the picture. A featured card whose payload has only a `subtitle` is split at " · ".
+int RB_CardTagLines(string id)
+{
+	if (uib_get(id, "display") == "table") return bound(0, stof(uib_get(id, "rows.#")), 6);
+	if (stof(uib_get(id, "tags.#")) > 0) return 1;
+	if (uib_get(id, "featured") == "1" && strstrofs(uib_get(id, "subtitle"), " · ", 0) >= 0) return 1;
+	return 0;
+}
+
+bool RB_CardTagged(string id)
+{
+	return uib_get(id, "display") == "table" || RB_CardTagLines(id) > 0;
+}
+
+float RB_CardHeader(string id)
+{
+	return D(14 + 26 + 10) + max(1, RB_CardTagLines(id)) * D(20);
+}
+
+// how many cells (at most 4) line `li` has, and cell `i` of it
+int RB_CardCellCount(string id, int li)
+{
+	if (uib_get(id, "display") == "table") return min(stof(uib_get(id, sprintf("rows.%d.#", li))), 4);
+	int nt = stof(uib_get(id, "tags.#"));
+	if (nt > 0) return min(nt, 4);
+	return min(tokenizebyseparator(uib_get(id, "subtitle"), " · "), 4);
+}
+
+string RB_CardCell(string id, int li, int i)
+{
+	if (uib_get(id, "display") == "table") return uib_get(id, sprintf("rows.%d.%d", li, i));
+	if (stof(uib_get(id, "tags.#")) > 0) return uib_get(id, sprintf("tags.%d", i));
+	tokenizebyseparator(uib_get(id, "subtitle"), " · ");
+	return argv(i);
+}
+
 float RB_LayoutCard(string id, float x, float y, float w, float region, float ih)
 {
 	string img = uib_get(id, "image");
 	if (img == "") ih = 0;
 	float th = D(62);
+	if (RB_CardTagged(id)) th = RB_CardHeader(id);
+	else
 	if (id == "home/tiles/mp") th += D(80); // the live server list: six lines
 	if (stof(uib_get(id, "meta.#")) > 0) th += D(28);
 	entity e = RB_Item("card", id, region, eX * x + eY * y, eX * w + eY * (ih + th));
@@ -2102,6 +2142,34 @@ void RB_DrawItem(entity e, int idx)
 		{
 			vector line = e.rb_sel ? RB_EMBER : RB_BLUE;
 			RB_Card(p, s, D(16), ((hot || pressed) ? RB_CARD_HI : RB_CARD), a, line, (e.rb_sel ? 1 : (e.rb_style ? 0.85 : 0.3)) * a);
+			if (RB_CardTagged(e.rb_id))
+			{
+				// title on top, then each line of equal cells with a separator between, then the picture
+				drawfont = FONT_USER + 3;
+				RB_TextFit(eX * (p.x + D(14)) + eY * (p.y + D(14)), e.rb_t1, D(16), s.x - D(28), RB_TEXT, a);
+				drawfont = FONT_USER;
+				int tl = RB_CardTagLines(e.rb_id);
+				float cx0 = p.x + D(10);
+				float cwid = s.x - D(20);
+				for (int li = 0; li < tl; ++li)
+				{
+					int nc = RB_CardCellCount(e.rb_id, li);
+					if (nc < 1) continue;
+					float cw = cwid / nc;
+					float cy = p.y + D(14 + 26) + li * D(20);
+					for (int ci = 0; ci < nc; ++ci)
+					{
+						if (ci > 0) RB_Fill(eX * (cx0 + ci * cw) + eY * (cy + D(1)), eX * max(1, D(1)) + eY * D(15), RB_BLUE, 0.4 * a);
+						RB_TextFit(eX * (cx0 + ci * cw + D(6)) + eY * cy, RB_CardCell(e.rb_id, li, ci), D(12), cw - D(12), RB_MUTED, a);
+					}
+				}
+				if (e.rb_img != "")
+				{
+					float hh = RB_CardHeader(e.rb_id);
+					RB_Image(e.rb_img, p + eX * D(4) + eY * hh, eX * (s.x - D(8)) + eY * (e.rb_size - D(4)), a, false);
+				}
+				break;
+			}
 			float ty = p.y + D(14);
 			if (e.rb_img != "")
 			{
