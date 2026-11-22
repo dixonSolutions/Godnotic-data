@@ -314,15 +314,6 @@ float UIB_ModeBots(string mode) { return bound(0, cvar(UIB_ModeBotCvar(mode)), (
 
 // Home: the banner at the top, scaled to the window, the three cards in one row
 // under it, and the bar of Settings, Credits and Quit along the bottom.
-// Whether a map's levelshot is in the game data (its picture can be shown now).
-bool UIB_MapHasPicture(string m)
-{
-	if (m == "")
-		return false;
-	string base = strcat("maps/", m);
-	return fexists(strcat(base, ".jpg")) || fexists(strcat(base, ".png")) || fexists(strcat(base, ".tga"));
-}
-
 void UIB_BuildHome()
 {
 	if (!UIB_Screen("home", _("Godnotic")))
@@ -380,14 +371,15 @@ void UIB_BuildHome()
 		UIB_Close();
 		UIB_Open("mp", "card");
 			uib_s("title", _("Multiplayer"));
+			// The card is the live server list: one line per server, busiest first, filled in as
+			// the list answers (empty while it loads). No picture: the list is the preview.
 			string preview = "";
-			string previewmap = "";
 			string previewsource = cvar_string("_uib_debug_servers");
 			if (previewsource == "") previewsource = "servers.all";
-			// six rows asked, three lines shown: a server listed under two addresses (IPv4 and IPv6) is one line
-			int previewcount = uib_window(previewsource, 0, 6, "players", true, "");
+			// twelve rows asked, six lines shown: a server listed under two addresses (IPv4 and IPv6) is one line
+			int previewcount = uib_window(previewsource, 0, 12, "players", true, "");
 			int previewlines = 0;
-			for (int pi = 0; pi < previewcount && previewlines < 3; ++pi)
+			for (int pi = 0; pi < previewcount && previewlines < 6; ++pi)
 			{
 				string pm = uib_wcell(pi, "map");
 				string pn = uib_wcell(pi, "name");
@@ -396,23 +388,10 @@ void UIB_BuildHome()
 				string line = sprintf("%s · %s · %s", pn, pm, (px != "" && px != "0") ? strcat(pp, "/", px) : pp);
 				if (strstrofs(strcat("\n", preview, "\n"), strcat("\n", line, "\n"), 0) >= 0)
 					continue;
-				// the first listed server whose map has a picture here (a map that is not installed has
-				// none: the card would be a bare panel)
-				if (previewmap == "" && UIB_MapHasPicture(pm)) previewmap = pm;
 				preview = strcat(preview, (previewlines ? "\n" : ""), line);
 				++previewlines;
 			}
-			uib_s("subtitle", preview != "" ? preview : _("No servers yet"));
-			uib_s("icon", "multiplayer");
-			// the top server's map picture, or one of the card's usual ones that is installed:
-			// never a card without a picture
-			if (previewmap == "")
-			{
-				previewmap = "xoylent";
-				if (!UIB_MapHasPicture(previewmap)) previewmap = UIB_MapHasPicture("stormkeep") ? "stormkeep" : "afterslime";
-			}
-			uib_s("image", strcat("pk3:maps/", previewmap));
-			uib_s("aspect", "16:9");
+			uib_s("subtitle", preview);
 			uib_b("featured", 1);
 			uib_b("live", 1);
 			uib_j("primary", UIB_A("mp", _("Open"), "chevron"));
@@ -1347,7 +1326,7 @@ void UIB_BuildPause()
 	// A short page (a phone on its side) has room for the actions or the match card,
 	// not both, and the actions are what the player came for (Leave match is one of
 	// them): the cards are dropped rather than the last row pushed off the bottom.
-	bool cardfits = cvar("_uib_region_h") >= 560;
+	bool cardfits = uib_native() || cvar("_uib_region_h") >= 560; // a native renderer lays the page out itself; only the QuakeC renderer publishes its region height
 	if (hosting && cardfits)
 	{
 		bool pw = UIB_HostLocked();

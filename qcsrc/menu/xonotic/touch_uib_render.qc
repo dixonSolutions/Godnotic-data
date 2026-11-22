@@ -471,7 +471,7 @@ float RB_LayoutCard(string id, float x, float y, float w, float region, float ih
 	string img = uib_get(id, "image");
 	if (img == "") ih = 0;
 	float th = D(62);
-	if (id == "home/tiles/mp") th += D(30);
+	if (id == "home/tiles/mp") th += D(80); // the live server list: six lines
 	if (stof(uib_get(id, "meta.#")) > 0) th += D(28);
 	entity e = RB_Item("card", id, region, eX * x + eY * y, eX * w + eY * (ih + th));
 	if (!e) return ih + th;
@@ -2122,7 +2122,7 @@ void RB_DrawItem(entity e, int idx)
 			if (e.rb_id == "home/tiles/mp")
 			{
 				int lines = tokenizebyseparator(e.rb_t2, "\n");
-				for (int li = 0; li < lines && li < 3; ++li)
+				for (int li = 0; li < lines && li < 6; ++li)
 					RB_TextFit(eX * tx + eY * (ty + D(22 + li * 15)), argv(li), D(12), p.x + s.x - tx - D(12), RB_MUTED, a);
 			}
 			else RB_TextFit(eX * tx + eY * (ty + D(22)), e.rb_t2, D(12), p.x + s.x - tx - D(12), RB_MUTED, a);
