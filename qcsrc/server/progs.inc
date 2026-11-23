@@ -24,6 +24,7 @@
 
 #include <ecs/_mod.inc>
 #include <server/touch_lua.qc> // Touch: Lua server plugin events
+#include <server/touch_bots.qc> // Touch: sv_cmd touchbots (Server control)
 #endif
 
 #ifdef BUILD_MOD

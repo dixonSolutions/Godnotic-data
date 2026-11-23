@@ -925,8 +925,9 @@ void UIB_StartGame(string map, string mode)
 	cvar_set("_uib_server_name", "");
 	cvar_set("_uib_server_net", "");
 	UIB_VMSet("mp.joining", "");
-	// a local game has the slots its bots need; only a LAN game has more
-	int slots = lan ? bound(2, max(cvar("touch_lan_maxplayers"), bots + 2), 64) : max(2, bots + 1);
+	// maxplayers cannot change while the match runs, so a local game starts with room for the
+	// most bots Server control allows (sized to the first bots it refused every added one)
+	int slots = lan ? bound(2, max(cvar("touch_lan_maxplayers"), bots + 2), 64) : 33;
 	if (lan)
 	{
 		float port = cvar("touch_lan_host_port");
@@ -1496,9 +1497,15 @@ float uib_ctl_denied0;   // _touch_rcon_denied when the password was sent
 
 void UIB_CtlOpen()
 {
-	UIB_VMSet("ctl.bots", cvar_string("bot_number"));
-	UIB_VMSet("ctl.timelimit", cvar_string("timelimit"));
-	UIB_VMSet("ctl.fraglimit", cvar_string("fraglimit"));
+	// the controls are bound to remembered values (touch_ctl_*); a game this device runs
+	// shows what it is really set to, another's server keeps what was used last
+	if (UIB_CtlLocal())
+	{
+		cvar_set("touch_ctl_bots", cvar_string("bot_number"));
+		cvar_set("touch_ctl_skill", ftos(bound(1, floor(cvar("skill")), 10)));
+		cvar_set("touch_ctl_timelimit", cvar_string("timelimit"));
+		cvar_set("touch_ctl_fraglimit", cvar_string("fraglimit"));
+	}
 	UIB_VMSet("ctl.password", "");
 	UIB_VMSet("ctl.denied", "");
 	if (UIB_VM("ctl.remember") == "")
@@ -1546,19 +1553,19 @@ void UIB_BuildControl()
 	uib_j("primary", UIB_AS("ctl.close", _("Close"), "check", "primary"));
 	if (!UIB_CtlLocal())
 		UIB_Text("hint", _("Commands go to this server over rcon."), "caption");
+	// Bots: how many, how good, which team (one Apply sends all three)
 	UIB_Section("bots", _("Bots"), false);
-		UIB_Stepper("n", _("Bots"), "vm:ctl.bots", 0, 32, 1, "");
-		UIB_Button("apply", _("Apply"), UIB_A("ctl.bots", _("Apply"), "check"), "secondary");
-	UIB_Close();
-	UIB_Section("players", _("Players"), false);
-		UIB_Open("kickrow", "row");
-			UIB_Open("who", "field");
-				uib_s("label", _("Player number or name"));
-				uib_s("bind", "vm:ctl.kick");
-				uib_j("submit", UIB_A("ctl.kick", _("Kick"), ""));
-			UIB_Close();
-			UIB_Button("kick", _("Kick"), UIB_A("ctl.kick", _("Kick"), "close"), "destructive");
+		UIB_Open("botform", "form");
+			uib_s("density", "compact");
+			// a game this device starts has room for 32 bots; another server's slots are not known
+			// here, it just refuses the bots it has no room for
+			UIB_Stepper("n", _("Bots"), "cvar:touch_ctl_bots", 0, 32, 1, "");
+			UIB_Choice("skill", _("Skill"), "cvar:touch_ctl_skill", "segmented", strcat("[", UIB_Opt("1", _("Easy")), ",", UIB_Opt("4", _("Normal")), ",",
+				strcat(UIB_Opt("7", _("Hard")), ",", UIB_Opt("10", _("Godlike")), "]")), "");
+			UIB_Choice("team", _("Team"), "cvar:touch_ctl_team", "segmented", strcat("[", UIB_Opt("auto", _("Balanced")), ",", UIB_Opt("red", _("Red")), ",",
+				strcat(UIB_Opt("blue", _("Blue")), "]")), _("Team games only. Balanced spreads the bots over the teams."));
 		UIB_Close();
+		UIB_Button("apply", _("Apply bots"), UIB_A("ctl.bots", _("Apply bots"), "check"), "primary");
 	UIB_Close();
 	UIB_Section("match", _("Match"), false);
 		UIB_Open("maprow", "row");
@@ -1569,13 +1576,26 @@ void UIB_BuildControl()
 			UIB_Close();
 			UIB_Button("go", _("Change map"), UIB_A("ctl.map", _("Change map"), "map"), "secondary");
 		UIB_Close();
-		UIB_Open("matchbtns", "row");
-			UIB_Button("restart", _("Restart"), UIB_A("ctl.restart", _("Restart"), "resume"), "secondary");
-			UIB_Button("more", _("More time"), UIB_A("ctl.extend", _("More time"), ""), "secondary");
+		UIB_Open("limits", "form");
+			uib_s("density", "compact");
+			UIB_Stepper("time", _("Time limit"), "cvar:touch_ctl_timelimit", 0, 120, 5, "min");
+			UIB_Stepper("frags", _("Frag limit"), "cvar:touch_ctl_fraglimit", 0, 500, 10, "");
 		UIB_Close();
-		UIB_Stepper("time", _("Time limit"), "vm:ctl.timelimit", 0, 120, 5, "min");
-		UIB_Stepper("frags", _("Frag limit"), "vm:ctl.fraglimit", 0, 500, 10, "");
-		UIB_Button("limits", _("Apply limits"), UIB_A("ctl.limits", _("Apply limits"), "check"), "secondary");
+		UIB_Open("matchbtns", "row");
+			UIB_Button("limitsapply", _("Apply limits"), UIB_A("ctl.limits", _("Apply limits"), "check"), "secondary");
+			UIB_Button("more", _("More time"), UIB_A("ctl.extend", _("More time"), ""), "secondary");
+			UIB_Button("restart", _("Restart"), UIB_A("ctl.restart", _("Restart"), "resume"), "secondary");
+		UIB_Close();
+	UIB_Close();
+	UIB_Section("players", _("Server"), false);
+		UIB_Open("kickrow", "row");
+			UIB_Open("who", "field");
+				uib_s("label", _("Kick: player number or name"));
+				uib_s("bind", "vm:ctl.kick");
+				uib_j("submit", UIB_A("ctl.kick", _("Kick"), ""));
+			UIB_Close();
+			UIB_Button("kick", _("Kick"), UIB_A("ctl.kick", _("Kick"), "close"), "destructive");
+		UIB_Close();
 	UIB_Close();
 	UIB_Section("cheats", _("Cheats"), false);
 		bool on = UIB_CtlCheats();
@@ -1745,7 +1765,7 @@ void UIB_BuildLoading()
 	switch (state)
 	{
 		case "connecting": stage = _("Connecting"); break;
-		case "downloading": stage = sprintf(_("Downloading %s"), file); break;
+		case "downloading": stage = sprintf(_("Downloading %s"), (strstrofs(file, "csprogs.dat", 0) >= 0) ? _("the server's game code") : file); break;
 		default: stage = _("Loading the map"); break;
 	}
 	string detail = "";
@@ -2291,7 +2311,19 @@ void UIB_Action(string node, string a, string payload)
 			UIB_RebuildAll();
 			return;
 		case "ctl.bots":
-			if (UIB_CtlAllowed()) UIB_CtlCmd(sprintf("bot_number %d", max(0, floor(UIB_VMf("ctl.bots")))));
+			if (UIB_CtlAllowed())
+			{
+				// the stock bot_number and skill work on any server; sv_cmd touchbots adds the
+				// bots at once and on the chosen team where the server has it (others ignore it)
+				int n = bound(0, floor(cvar("touch_ctl_bots")), 32);
+				string tm = cvar_string("touch_ctl_team");
+				if (tm != "red" && tm != "blue")
+					tm = "auto";
+				UIB_CtlCmd(sprintf("skill %d", bound(1, floor(cvar("touch_ctl_skill")), 10)));
+				UIB_CtlCmd(sprintf("bot_number %d", n));
+				UIB_CtlCmd(sprintf("sv_cmd touchbots %d %s", n, tm));
+				uib_toast(sprintf(_("Bots set to %d"), n), "info", "info", 2);
+			}
 			return;
 		case "ctl.kick":
 		{
@@ -2320,8 +2352,8 @@ void UIB_Action(string node, string a, string payload)
 		case "ctl.limits":
 			if (UIB_CtlAllowed())
 			{
-				UIB_CtlCmd(sprintf("timelimit %d", max(0, floor(UIB_VMf("ctl.timelimit")))));
-				UIB_CtlCmd(sprintf("fraglimit %d", max(0, floor(UIB_VMf("ctl.fraglimit")))));
+				UIB_CtlCmd(sprintf("timelimit %d", bound(0, floor(cvar("touch_ctl_timelimit")), 999)));
+				UIB_CtlCmd(sprintf("fraglimit %d", bound(0, floor(cvar("touch_ctl_fraglimit")), 9999)));
 			}
 			return;
 		case "ctl.cheats":

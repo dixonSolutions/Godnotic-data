@@ -1550,6 +1550,18 @@ void RB_Layout()
 				it.rb_o_y += slack;
 		}
 	}
+	if (uib_get(sc, "kind") == "loading" && split == "" && rg_content[0] < rg_s[0].y)
+	{
+		// the join card (the status node and its Cancel) is docked at the bottom, as the native card is: the
+		// map's picture or the backdrop fills the rest of the screen above it
+		float dock = rg_s[0].y - rg_content[0];
+		for (int i = 0; i < rb_n; ++i)
+		{
+			entity it = rb_item[i];
+			if (it.rb_region == 0)
+				it.rb_o_y += dock;
+		}
+	}
 	rg_max[0] = max(0, rg_content[0] - rg_s[0].y);
 	rg_max[4] = max(0, rg_content[4] - rg_s[4].y);
 	// the top modal (dialog or sheet)
