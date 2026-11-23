@@ -8,12 +8,17 @@
 #include "touch_input.qh"
 #include <lib/cvar.qh>
 
-const int TOUCH_CHAT_PICK_MAX = 24;   // names held
+const int TOUCH_CHAT_PICK_MAX = 64;   // names held
 const int TOUCH_CHAT_PICK_ROWS = 4;   // rows shown; the rest scroll by drag
 int touch_chat_pick_off;
 bool touch_chat_pick_press;
 bool touch_chat_pick_dragged;
 float touch_chat_pick_y0;
+float touch_chat_pick_vel;      // rows per second left to coast after a flick
+float touch_chat_pick_acc;      // part of a row not yet scrolled
+float touch_chat_pick_last_y;
+float touch_chat_pick_last_t;
+float touch_chat_pick_tick;
 int touch_chat_pick_n;
 string touch_chat_pick_name[TOUCH_CHAT_PICK_MAX];
 bool touch_chat_pick_spec[TOUCH_CHAT_PICK_MAX];
@@ -205,7 +210,7 @@ void Touch_Chat_PickRefresh(void)
 		return;
 	touch_chat_pick_at = at;
 	string q = strtolower(substring(upto, at + 1, strlen(upto) - at - 1));
-	int count = tokenizebyseparator(cvar_string("_touch_roster"), "\n");
+	int count = tokenizebyseparator(cvar_string("_touch_roster_all"), "\n");
 	string names[64];
 	bool spec[64];
 	int i, pass;
@@ -251,6 +256,26 @@ void Touch_Chat_PickAccept(int row)
 		touch_chat_caret = strlen(head);
 	}
 	touch_chat_pick_n = 0;
+}
+
+// Space after "@fi": when "fi" is not already a player's exact name and something
+// matches, the best match replaces it ("@fishman "), and the space is used up.
+// Returns true when it did that; false means the space is typed as usual.
+bool Touch_Chat_PickSpace(void)
+{
+	Touch_Chat_PickRefresh();
+	if (touch_chat_pick_n <= 0)
+		return false;
+	string upto = substring(touch_chat_text, 0, touch_chat_caret);
+	string q = strtolower(substring(upto, touch_chat_pick_at + 1, strlen(upto) - touch_chat_pick_at - 1));
+	if (q == "")
+		return false;
+	int i;
+	for (i = 0; i < touch_chat_pick_n; i += 1)
+		if (strtolower(touch_chat_pick_name[i]) == q)
+			return false;
+	Touch_Chat_PickAccept(0);
+	return true;
 }
 
 float Touch_Chat_PickRowH(void)
@@ -596,6 +621,8 @@ bool Touch_Chat_KeyEvent(float bInputType, float nPrimary, float nSecondary)
 		string left = substring(touch_chat_text, 0, touch_chat_caret);
 		string right = substring(touch_chat_text, touch_chat_caret, strlen(touch_chat_text) - touch_chat_caret);
 		string next = Touch_Kb_Type(left, nPrimary, nSecondary);
+		if (next == strcat(left, " ") && Touch_Chat_PickSpace())
+			return true;
 		if (next != left)
 		{
 			strcpy(touch_chat_text, strcat(next, right));
@@ -735,6 +762,9 @@ void Touch_Chat_PointerDown(vector p)
 		touch_chat_pick_press = true;
 		touch_chat_pick_dragged = false;
 		touch_chat_pick_y0 = p.y;
+		touch_chat_pick_last_y = p.y;
+		touch_chat_pick_last_t = time;
+		touch_chat_pick_vel = 0;
 		return;
 	}
 	// A finger in the text field places the caret, and dragging along it moves it.
@@ -762,6 +792,14 @@ void Touch_Chat_PointerMove(vector p)
 		float dy = p.y - touch_chat_pick_y0;
 		if (fabs(dy) > rowh * 0.5)
 			touch_chat_pick_dragged = true;
+		// the flick's speed, in rows per second, for the coast after release
+		if (time > touch_chat_pick_last_t)
+		{
+			float v = -(p.y - touch_chat_pick_last_y) / rowh / (time - touch_chat_pick_last_t);
+			touch_chat_pick_vel = touch_chat_pick_vel * 0.6 + v * 0.4;
+		}
+		touch_chat_pick_last_y = p.y;
+		touch_chat_pick_last_t = time;
 		int rows = floor(fabs(dy) / rowh);
 		if (rows > 0)
 		{
@@ -858,6 +896,8 @@ void Touch_Chat_PointerUp(void)
 	string left = substring(touch_chat_text, 0, touch_chat_caret);
 	string right = substring(touch_chat_text, touch_chat_caret, strlen(touch_chat_text) - touch_chat_caret);
 	string next = Touch_Kb_Apply(left, row, cell);
+	if (next == strcat(left, " ") && Touch_Chat_PickSpace())
+		return;
 	// Shift and ?123 hand back the text itself; strcpy would free it before
 	// copying it, and the message was gone after every shift.
 	if (next != left)
@@ -872,6 +912,22 @@ void Touch_Chat_Frame(void)
 {
 	if (!Touch_Chat_Active())
 		return;
+	// A flicked @ list keeps scrolling a moment and slows to a stop.
+	float dt = min(0.1, time - touch_chat_pick_tick);
+	touch_chat_pick_tick = time;
+	if (!touch_chat_pick_press && fabs(touch_chat_pick_vel) > 0.6 && touch_chat_pick_n > TOUCH_CHAT_PICK_ROWS)
+	{
+		touch_chat_pick_acc += touch_chat_pick_vel * dt;
+		int whole = (touch_chat_pick_acc > 0) ? floor(touch_chat_pick_acc) : -floor(-touch_chat_pick_acc);
+		if (whole != 0)
+		{
+			touch_chat_pick_off = bound(0, touch_chat_pick_off + whole, max(0, touch_chat_pick_n - TOUCH_CHAT_PICK_ROWS));
+			touch_chat_pick_acc -= whole;
+		}
+		touch_chat_pick_vel *= pow(0.04, dt);
+	}
+	else if (!touch_chat_pick_press)
+		touch_chat_pick_vel = 0;
 	// Keys are released on open, but a sheet that stays open across a respawn
 	// must not let anything creep back on.
 	Touch_ReleaseAll();
