@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Godnotic UI bridge: Settings > Player on one page (docs/SETTINGS_MAP.md, "Player").
 //
-//   Name        the field, then one swatch per colour code ^0..^9 (a tap writes the code
-//               at the end of the name)
+//   Name        the field, then the colour picker (hue/saturation/brightness, the ^0..^9
+//               presets, a letter range, a live preview; the native renderers draw it)
 //   Character   the model's picture with arrows to flip through every model: the game's
 //               stock ones and the player's own uploads, in one cycle; its name under it
 //   Colours     shirt and pants (_cl_color), the colours the character wears in a match
@@ -18,6 +18,7 @@
 // own delete button.
 
 const int UIB_PM_MAX = 96;
+
 string uib_pm_model[UIB_PM_MAX];
 string uib_pm_skin[UIB_PM_MAX];
 string uib_pm_title[UIB_PM_MAX];
@@ -103,6 +104,16 @@ void UIB_PMSelect(int i)
 	localcmd("\nplayermodel $_cl_playermodel; playerskin $_cl_playerskin\nsaveconfig\n");
 }
 
+void UIB_PMButton(string key, string label, string actionjson, string style, string width)
+{
+	uib_node(key, "button");
+	uib_s("label", label);
+	uib_j("action", actionjson);
+	if (style != "") uib_s("style", style);
+	if (width != "") uib_s("width", width);
+	uib_end();
+}
+
 void UIB_PlayerPage()
 {
 	UIB_PMLoad();
@@ -115,13 +126,16 @@ void UIB_PlayerPage()
 		uib_s("bind", "vm:player.name");
 		uib_s("value", strreplace("^", "^^", nm));   // the field shows and edits the codes themselves
 		uib_s("kind", "name");
-		uib_f("maxLength", 32);
+		uib_f("maxLength", UIB_PM_NAME_MAX);
 		UIB_Apply("reconnect");
 	UIB_Close();
 	UIB_Open("namecolours", "colour");
-		uib_s("label", _("Name colours"));
-		uib_s("help", _("Tap a colour to add its code (^0 to ^9) to the end of the name"));
+		uib_s("label", _("Name colour"));
+		uib_s("help", _("Pick a colour and apply it to the whole name or to some of its letters"));
 		uib_s("bind", "vm:player.namecolour");
+		uib_s("picker", "name");
+		uib_s("text", strreplace("^", "^^", nm));
+		uib_f("maxLength", UIB_PM_NAME_MAX);
 		string pal = "[", labels = "[";
 		for (int i = 0; i < 10; ++i)
 		{
@@ -131,8 +145,11 @@ void UIB_PlayerPage()
 		uib_j("palette", strcat(pal, "]"));
 		uib_j("labels", strcat(labels, "]"));
 	UIB_Close();
+	string nmsg = UIB_VM("player.name.msg");
+	if (nmsg != "")
+		UIB_Text("namemsg", nmsg, "warning");
 	if (strstrofs(nm, "^", 0) >= 0)
-		UIB_Button("plain", _("Remove the colour codes"), UIB_A("player.name.plain", _("Remove the colour codes"), ""), "link");
+		UIB_PMButton("plain", _("Remove the colour codes"), UIB_A("player.name.plain", _("Remove the colour codes"), ""), "link", "s");
 	UIB_Close();
 
 	UIB_Section("character", _("Character"), true);
@@ -146,21 +163,33 @@ void UIB_PlayerPage()
 			uib_s("alt", uib_pm_title[shown]);
 		UIB_Close();
 		UIB_Open("flip", "row");
-			uib_s("align", "spread");
-			UIB_Button("prev", "<", UIB_A("player.model.prev", _("Previous model"), ""), "tonal");
+			uib_s("align", "center");
+			UIB_PMButton("prev", "<", UIB_A("player.model.prev", _("Previous model"), ""), "tonal", "xs");
 			UIB_Text("title", uib_pm_title[shown], "title");
-			UIB_Button("next", ">", UIB_A("player.model.next", _("Next model"), ""), "tonal");
+			UIB_PMButton("next", ">", UIB_A("player.model.next", _("Next model"), ""), "tonal", "xs");
 		UIB_Close();
 		string kind = uib_pm_up[shown] ? _("Your model") : _("Xonotic model");
 		UIB_Text("kind", sprintf(_("%s, %d of %d"), kind, shown + 1, uib_pm_n), "caption");
-		if (uib_pm_up[shown])
-			UIB_Button("delete", _("Delete this model"),
-				sprintf("{\"id\":\"player.model.delete\",\"label\":%s,\"icon\":\"delete\",\"confirm\":{\"title\":%s,\"body\":%s,\"ok\":%s,\"destructive\":true}}",
-					uib_q(_("Delete this model")), uib_q(_("Delete this model?")), uib_q(_("The file is removed from this device. You can upload it again.")), uib_q(_("Delete"))),
-				"destructive");
 	}
 	else
 		UIB_Text("none", _("No player models found: the game data is not complete yet."), "caption");
+	// upload and delete sit right at the model
+	if (cvar_string("uib_pm") != "")
+	{
+		UIB_Open("modelactions", "row");
+			uib_s("align", "center");
+			UIB_PMButton("pick", _("Upload a model"), "{\"id\":\"player.upload\",\"label\":\"Choose a model file or .pk3\",\"icon\":\"upload\",\"kind\":\"file\",\"accept\":[\"pk3\",\"zip\"]}", "secondary", "s");
+			if (uib_pm_n > 0 && uib_pm_up[(cur >= 0) ? cur : 0])
+				UIB_PMButton("delete", _("Delete"),
+					sprintf("{\"id\":\"player.model.delete\",\"label\":%s,\"icon\":\"delete\",\"confirm\":{\"title\":%s,\"body\":%s,\"ok\":%s,\"destructive\":true}}",
+						uib_q(_("Delete this model")), uib_q(_("Delete this model?")), uib_q(_("The file is removed from this device. You can upload it again.")), uib_q(_("Delete"))),
+					"destructive", "s");
+		UIB_Close();
+		string msg = UIB_VM("player.upload.msg");
+		if (msg != "")
+			UIB_Text("result", msg, (UIB_VM("player.upload.ok") == "1") ? "caption" : "warning");
+		UIB_Text("hint", _("Upload a .pk3 or .zip with the model (iqm, dpm, md3 or zym), its skin and animations; it becomes your character when it fits. Other players see it only if they have the same model."), "caption");
+	}
 	UIB_Close();
 
 	UIB_Section("colours", _("Colours"), true);
@@ -180,17 +209,6 @@ void UIB_PlayerPage()
 		UIB_Apply("reconnect");
 	UIB_Close();
 	UIB_Close();
-
-	if (cvar_string("uib_pm") != "")
-	{
-		UIB_Section("upload", _("Your own model"), true);
-		UIB_Button("pick", _("Upload a model"), "{\"id\":\"player.upload\",\"label\":\"Choose a model file or .pk3\",\"icon\":\"upload\",\"kind\":\"file\",\"accept\":[\"pk3\",\"zip\"]}", "secondary");
-		string msg = UIB_VM("player.upload.msg");
-		if (msg != "")
-			UIB_Text("result", msg, (UIB_VM("player.upload.ok") == "1") ? "caption" : "warning");
-		UIB_Text("hint", _("A .pk3 or .zip with the model (iqm, dpm, md3 or zym), its skin and animations; it becomes your character when it fits. Other players see it only if they have the same model."), "caption");
-		UIB_Close();
-	}
 }
 
 string UIB_PMPayloadPath(string payload)
@@ -264,18 +282,69 @@ bool UIB_PlayerAction(string a, string payload)
 	return false;
 }
 
-// a tap on a name colour: the code goes at the end of the name
-bool UIB_PlayerNameColour(string hex)
+int UIB_PMHexVal(string c)
 {
-	for (int i = 0; i < 10; ++i)
-		if (UIB_PMNameHex(i) == hex)
-		{
-			string nm = strcat(cvar_string("_cl_name"), "^", ftos(i));
-			cvar_set("_cl_name", nm);
-			UIB_VMSet("player.name", nm);
-			localcmd("\nname \"$_cl_name\"\nsaveconfig\n");
-			UIB_RebuildAll();
-			return true;
-		}
+	return strstrofs("0123456789abcdef", strtolower(c), 0);
+}
+
+// "#rrggbb" to Xonotic's "^xRGB" (4 bits a channel, the nearest of 16 levels), "" if malformed
+string UIB_PMXon(string hex)
+{
+	if (strlen(hex) != 7 || substring(hex, 0, 1) != "#") return "";
+	string r = "^x";
+	for (int i = 0; i < 3; ++i)
+	{
+		int hi = UIB_PMHexVal(substring(hex, 1 + 2 * i, 1)), lo = UIB_PMHexVal(substring(hex, 2 + 2 * i, 1));
+		if (hi < 0 || lo < 0) return "";
+		r = strcat(r, substring("0123456789abcdef", floor((hi * 16 + lo) / 17 + 0.5), 1));
+	}
+	return r;
+}
+
+// the name as the player typed or picked it, checked and made the player's name
+bool UIB_PMSetName(string nm)
+{
+	if (strlen(nm) > UIB_PM_NAME_MAX)
+	{
+		UIB_VMSet("player.name.msg", sprintf(_("Not changed: the name with its colour codes may be %d characters at most."), UIB_PM_NAME_MAX));
+		UIB_RebuildAll();
+		return true;
+	}
+	if (strdecolorize(nm) == "")
+	{
+		UIB_VMSet("player.name.msg", _("Not changed: the name needs at least one letter."));
+		UIB_RebuildAll();
+		return true;
+	}
+	UIB_VMSet("player.name.msg", "");
+	cvar_set("_cl_name", nm);
+	UIB_VMSet("player.name", nm);
+	localcmd("\nname \"$_cl_name\"\nsaveconfig\n");
+	UIB_RebuildAll();
+	return true;
+}
+
+// what the picker sent: name:<whole new name>, whole:#rrggbb, end:#rrggbb or chip:N
+bool UIB_PlayerNameColour(string v)
+{
+	int k = strstrofs(v, ":", 0);
+	if (k < 0) return false;
+	string op = substring(v, 0, k), arg = substring(v, k + 1, -1);
+	string cur = cvar_string("_cl_name");
+	if (op == "name")
+		return UIB_PMSetName(arg);
+	if (op == "chip")
+	{
+		int i = stof(arg);
+		if (i < 0 || i > 9 || ftos(i) != arg) return false;
+		return UIB_PMSetName(strcat(cur, "^", ftos(i)));
+	}
+	if (op == "whole" || op == "end")
+	{
+		string code = UIB_PMXon(arg);
+		if (code == "") return false;
+		if (op == "end") return UIB_PMSetName(strcat(cur, code));
+		return UIB_PMSetName(strcat(code, strreplace("^", "^^", strdecolorize(cur))));
+	}
 	return false;
 }
