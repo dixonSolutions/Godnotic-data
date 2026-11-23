@@ -391,11 +391,11 @@ void UIB_BuildHome()
 			string preview = "";
 			string previewsource = cvar_string("_uib_debug_servers");
 			if (previewsource == "") previewsource = "servers.all";
-			// twelve rows asked, six lines shown: a server listed under two addresses (IPv4 and IPv6) is one line
-			int previewcount = uib_window(previewsource, 0, 12, "players", true, "");
+			// sixteen rows asked, up to twelve lines sent (the renderer shows as many as the card's height holds): a server listed under two addresses (IPv4 and IPv6) is one line
+			int previewcount = uib_window(previewsource, 0, 16, "players", true, "");
 			int previewlines = 0;
 			string previewrows = "";
-			for (int pi = 0; pi < previewcount && previewlines < 6; ++pi)
+			for (int pi = 0; pi < previewcount && previewlines < 12; ++pi)
 			{
 				string pm = uib_wcell(pi, "map");
 				string pn = uib_wcell(pi, "name");
