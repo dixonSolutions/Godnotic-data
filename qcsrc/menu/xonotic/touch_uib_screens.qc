@@ -1424,6 +1424,8 @@ void UIB_BuildPause()
 		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
 		UIB_Button("settings", _("Settings"), UIB_A("settings", _("Settings"), "settings"), "secondary");
 		UIB_Button("vote", _("Call a vote"), UIB_A("vote.open", _("Call a vote"), ""), "secondary");
+		// the one who runs the game (this device's own, or anyone's with the rcon password)
+		UIB_Button("control", _("Server control"), UIB_A("ctl.open", _("Server control"), "settings"), "secondary");
 		// the engine's action list (_touch_act_*): Join game while watching, Spectate while playing
 		if (cvar("_touch_act_join"))
 			UIB_Button("join", _("Join game"), UIB_A("join.open", _("Join game"), "play"), "secondary");
@@ -1441,6 +1443,155 @@ void UIB_BuildPause()
 			uib_j("action", UIB_AS("disconnect", (hosting ? _("End the game") : _("Leave match")), "disconnect", "destructive"));
 		UIB_Close();
 	UIB_Close();
+	UIB_Done();
+}
+
+// ---------------------------------------------------------------- server control
+// A popup for the one who runs the game: bots, kick, map, restart, limits, cheats.
+// On a server this device hosts the commands go straight to it, no password; on
+// someone else's server they go over rcon with a password typed here. The
+// password lives only in the private rcon_password cvar (never saved to the
+// config, never printed) and is forgotten with "Forget password".
+
+// the arguments typed here end up inside a console command: nothing that could
+// end it or start another
+string UIB_CtlClean(string t)
+{
+	t = strreplace("\"", "", strreplace("\\", "", strreplace("$", "", strreplace(";", "", t))));
+	t = strreplace("\n", "", strreplace("\r", "", t));
+	return substring(t, 0, 48);
+}
+
+bool UIB_CtlLocal()
+{
+	return (gamestatus & GAME_ISSERVER) != 0;
+}
+
+// may this device control the server it is in? its own: yes; another's: after a password
+bool UIB_CtlAllowed()
+{
+	if (UIB_CtlLocal())
+		return true;
+	string a = UIB_JoinAddress();
+	return (a != "") && (UIB_VM("ctl.auth") == a);
+}
+
+// the one place a control command leaves from
+void UIB_CtlCmd(string c)
+{
+	if (UIB_CtlLocal())
+		localcmd(strcat("\n", c, "\n"));
+	else
+		localcmd(strcat("\nrcon ", c, "\n"));
+}
+
+bool UIB_CtlCheats()
+{
+	if (UIB_CtlLocal())
+		return cvar("sv_cheats") != 0;
+	return UIB_VM("ctl.cheats") == "1";
+}
+
+float uib_ctl_denied0;   // _touch_rcon_denied when the password was sent
+
+void UIB_CtlOpen()
+{
+	UIB_VMSet("ctl.bots", cvar_string("bot_number"));
+	UIB_VMSet("ctl.timelimit", cvar_string("timelimit"));
+	UIB_VMSet("ctl.fraglimit", cvar_string("fraglimit"));
+	UIB_VMSet("ctl.password", "");
+	UIB_VMSet("ctl.denied", "");
+	if (UIB_VM("ctl.remember") == "")
+		UIB_VMSet("ctl.remember", "1");
+	// the front end kept this server's password (encrypted) and set it with the server's
+	// address in ctl.saved before the open: unlocked at once
+	string saved = UIB_VM("ctl.saved");
+	UIB_VMSet("ctl.saved", "");
+	if (!UIB_CtlLocal() && saved != "" && saved == UIB_JoinAddress())
+	{
+		uib_ctl_denied0 = cvar("_touch_rcon_denied");
+		UIB_VMSet("ctl.auth", saved);
+	}
+	UIB_Modal("ctl");
+}
+
+void UIB_BuildControl()
+{
+	if (!UIB_Screen("ctl", _("Server control")))
+		return;
+	uib_s("presentation", "dialog");
+	uib_b("dismissable", 1);
+	if (!UIB_CtlAllowed())
+	{
+		// another's server: the rcon password, once per game
+		uib_j("primary", UIB_AS("ctl.auth", _("Unlock"), "lock", "primary"));
+		UIB_Text("text", _("Enter the server's rcon password."), "");
+		UIB_Open("form", "form");
+			uib_j("submit", UIB_AS("ctl.auth", _("Unlock"), "lock", "primary"));
+			UIB_Open("pw", "field");
+				uib_s("label", _("Rcon password"));
+				uib_s("bind", "vm:ctl.password");
+				uib_s("kind", "password");
+				uib_b("private", 1);
+				uib_b("hasValue", 0);
+				uib_j("submit", UIB_A("ctl.auth", _("Unlock"), ""));
+			UIB_Close();
+		UIB_Close();
+		UIB_Switch("remember", _("Remember for this server"), "vm:ctl.remember", "");
+		if (UIB_VM("ctl.denied") == "1")
+			UIB_Text("hint", _("Wrong password, or rcon is off on this server."), "warning");
+		UIB_Done();
+		return;
+	}
+	uib_j("primary", UIB_AS("ctl.close", _("Close"), "check", "primary"));
+	if (!UIB_CtlLocal())
+		UIB_Text("hint", _("Commands go to this server over rcon."), "caption");
+	UIB_Section("bots", _("Bots"), false);
+		UIB_Stepper("n", _("Bots"), "vm:ctl.bots", 0, 32, 1, "");
+		UIB_Button("apply", _("Apply"), UIB_A("ctl.bots", _("Apply"), "check"), "secondary");
+	UIB_Close();
+	UIB_Section("players", _("Players"), false);
+		UIB_Open("kickrow", "row");
+			UIB_Open("who", "field");
+				uib_s("label", _("Player number or name"));
+				uib_s("bind", "vm:ctl.kick");
+				uib_j("submit", UIB_A("ctl.kick", _("Kick"), ""));
+			UIB_Close();
+			UIB_Button("kick", _("Kick"), UIB_A("ctl.kick", _("Kick"), "close"), "destructive");
+		UIB_Close();
+	UIB_Close();
+	UIB_Section("match", _("Match"), false);
+		UIB_Open("maprow", "row");
+			UIB_Open("map", "field");
+				uib_s("label", _("Map name"));
+				uib_s("bind", "vm:ctl.map");
+				uib_j("submit", UIB_A("ctl.map", _("Change map"), ""));
+			UIB_Close();
+			UIB_Button("go", _("Change map"), UIB_A("ctl.map", _("Change map"), "map"), "secondary");
+		UIB_Close();
+		UIB_Open("matchbtns", "row");
+			UIB_Button("restart", _("Restart"), UIB_A("ctl.restart", _("Restart"), "resume"), "secondary");
+			UIB_Button("more", _("More time"), UIB_A("ctl.extend", _("More time"), ""), "secondary");
+		UIB_Close();
+		UIB_Stepper("time", _("Time limit"), "vm:ctl.timelimit", 0, 120, 5, "min");
+		UIB_Stepper("frags", _("Frag limit"), "vm:ctl.fraglimit", 0, 500, 10, "");
+		UIB_Button("limits", _("Apply limits"), UIB_A("ctl.limits", _("Apply limits"), "check"), "secondary");
+	UIB_Close();
+	UIB_Section("cheats", _("Cheats"), false);
+		bool on = UIB_CtlCheats();
+		string cheatlabel = (on ? _("Turn cheats off") : _("Turn cheats on"));
+		UIB_Button("toggle", cheatlabel, UIB_A("ctl.cheats", cheatlabel, ""), "secondary");
+		if (on)
+		{
+			UIB_Open("cheatbtns", "row");
+				UIB_Button("god", _("God mode"), UIB_A("ctl.god", _("God mode"), ""), "secondary");
+				UIB_Button("noclip", _("Noclip"), UIB_A("ctl.noclip", _("Noclip"), ""), "secondary");
+				UIB_Button("give", _("Give all"), UIB_A("ctl.give", _("Give all"), ""), "secondary");
+			UIB_Close();
+		}
+	UIB_Close();
+	if (!UIB_CtlLocal())
+		UIB_Button("forget", _("Forget password"), UIB_A("ctl.forget", _("Forget password"), "lock"), "secondary");
 	UIB_Done();
 }
 
@@ -1537,6 +1688,19 @@ void UIB_LanPopupClose(bool resume)
 
 // Every tick while in a game: open the popup once when a LAN game this device
 // hosts is up, close it when the first player joins if the switch says so.
+// a server that refused the rcon password: back to the password form with a line
+// saying so (the front end forgets the stored password on the same refusal)
+void UIB_CtlTick()
+{
+	if (UIB_VM("ctl.auth") == "" || cvar("_touch_rcon_denied") <= uib_ctl_denied0)
+		return;
+	uib_ctl_denied0 = cvar("_touch_rcon_denied");
+	cvar_set("rcon_password", "");
+	UIB_VMSet("ctl.auth", "");
+	UIB_VMSet("ctl.denied", "1");
+	UIB_RebuildAll();
+}
+
 void UIB_LanPopupTick()
 {
 	if (uibn_context != "game" || !cvar("touch_lan_hosting"))
@@ -1835,6 +1999,7 @@ void UIB_Build(string id)
 		case "welcome": UIB_BuildWelcome(); return;
 		case "pause": UIB_BuildPause(); return;
 		case "vote.call": UIB_BuildVoteCall(); return;
+		case "ctl": UIB_BuildControl(); return;
 		case "loading": UIB_BuildLoading(); return;
 		case "setup": UIB_BuildSetup(); return;
 		case "credits": UIB_BuildCredits(); return;
@@ -1987,6 +2152,7 @@ void UIB_Tick()
 		uib_toast(dbg, "success", "check", 4);
 	}
 	UIB_LanPopupTick();
+	UIB_CtlTick();
 	UIB_JoinFailTick();
 	UIB_JoinTick();
 	TouchData_UIBTick();
@@ -2102,6 +2268,74 @@ void UIB_Action(string node, string a, string payload)
 			return;
 		}
 		case "resume": m_hide(); return;
+		case "ctl.open": UIB_CtlOpen(); return;
+		case "ctl.close": UIB_Back(); return;
+		case "ctl.auth":
+		{
+			string pw = UIB_VM("ctl.password");
+			string addr = UIB_JoinAddress();
+			if (pw == "" || addr == "")
+				return;
+			cvar_set("rcon_password", pw);
+			uib_ctl_denied0 = cvar("_touch_rcon_denied");
+			UIB_VMSet("ctl.denied", "");
+			UIB_VMSet("ctl.password", "");
+			UIB_VMSet("ctl.auth", addr);
+			UIB_RebuildAll();
+			return;
+		}
+		case "ctl.forget":
+			cvar_set("rcon_password", "");
+			UIB_VMSet("ctl.auth", "");
+			UIB_VMSet("ctl.cheats", "");
+			UIB_RebuildAll();
+			return;
+		case "ctl.bots":
+			if (UIB_CtlAllowed()) UIB_CtlCmd(sprintf("bot_number %d", max(0, floor(UIB_VMf("ctl.bots")))));
+			return;
+		case "ctl.kick":
+		{
+			string who = UIB_CtlClean(UIB_VM("ctl.kick"));
+			if (!UIB_CtlAllowed() || who == "")
+				return;
+			if (stof(who) > 0 || who == "0")
+				UIB_CtlCmd(strcat("kick # ", who));
+			else
+				UIB_CtlCmd(strcat("kick \"", who, "\""));
+			UIB_VMSet("ctl.kick", "");
+			uib_toast(_("Kick sent"), "info", "info", 2);
+			return;
+		}
+		case "ctl.map":
+		{
+			string cm = UIB_VM("ctl.map");
+			if (!TouchVoteCall_ValidMap(cm))
+				uib_toast(_("Enter a valid map name"), "warning", "warning", 3);
+			else if (UIB_CtlAllowed())
+				UIB_CtlCmd(strcat("sv_cmd gotomap ", cm));
+			return;
+		}
+		case "ctl.restart": if (UIB_CtlAllowed()) UIB_CtlCmd("restart"); return;
+		case "ctl.extend": if (UIB_CtlAllowed()) UIB_CtlCmd("sv_cmd extendmatchtime"); return;
+		case "ctl.limits":
+			if (UIB_CtlAllowed())
+			{
+				UIB_CtlCmd(sprintf("timelimit %d", max(0, floor(UIB_VMf("ctl.timelimit")))));
+				UIB_CtlCmd(sprintf("fraglimit %d", max(0, floor(UIB_VMf("ctl.fraglimit")))));
+			}
+			return;
+		case "ctl.cheats":
+			if (UIB_CtlAllowed())
+			{
+				bool want = !UIB_CtlCheats();
+				UIB_CtlCmd(sprintf("sv_cheats %d", want));
+				UIB_VMSet("ctl.cheats", (want ? "1" : ""));
+				UIB_RebuildAll();
+			}
+			return;
+		case "ctl.god": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd god\n"); return;
+		case "ctl.noclip": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd noclip\n"); return;
+		case "ctl.give": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd give all\n"); return;
 		case "vote.open": UIB_Push("vote.call"); return;
 		case "vote.restart": localcmd("cmd vote call restart\n"); m_hide(); return;
 		case "vote.endmatch": localcmd("cmd vote call endmatch\n"); m_hide(); return;
