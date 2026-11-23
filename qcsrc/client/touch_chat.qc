@@ -28,6 +28,18 @@ string touch_chat_pick_for;
 
 vector Touch_Chat_FieldCenter(void);
 vector Touch_Chat_FieldHalf(void);
+float Touch_Chat_Pad(void);
+vector Touch_Chat_SheetCenter(void);
+vector Touch_Chat_InnerHalf(void);
+
+// The backlog scrolls by the pixel, with momentum, and only the rows on screen
+// are drawn (the same rules as the engine's chat log box). hist_off is how far the
+// content is pulled down from the live state (0: the newest line at the bottom).
+float touch_chat_hist_off;
+float touch_chat_hist_vel;       // units per second left to coast
+bool touch_chat_hist_press;
+float touch_chat_hist_last_y;
+float touch_chat_hist_last_t;
 
 bool touch_chat_open;
 bool touch_chat_team;
@@ -62,6 +74,9 @@ void Touch_Chat_Reset(void)
 	touch_chat_hot_row = -1;
 	touch_chat_hot_cell = -1;
 	touch_chat_hot_button = TOUCH_CHAT_BTN_NONE;
+	touch_chat_hist_off = 0;
+	touch_chat_hist_vel = 0;
+	touch_chat_hist_press = false;
 	touch_chat_pick_n = 0;
 	touch_chat_pick_hot = -1;
 	strcpy(touch_chat_pick_for, "");
@@ -77,6 +92,11 @@ void Touch_Chat_Reset(void)
 // tell, with a sound) or \3 (message, silent) — see Con_MaskPrint in
 // darkplaces/console.c. Using the same test means the sheet shows exactly what
 // the feed showed, instead of a QC-side guess about what looks like chat.
+float Touch_Chat_HistPitch(void)
+{
+	return TOUCH_FONT_READOUT_SM * Touch_UIScale() * 1.15 * 1.55;
+}
+
 void Touch_Chat_Capture(string msg)
 {
 	if (msg == "")
@@ -93,6 +113,10 @@ void Touch_Chat_Capture(string msg)
 	if (line == "")
 		return;
 
+	// Pinned to the bottom unless the reader has scrolled up: then the lines under
+	// the finger stay put (the same rule as TouchChatLog_PinAdjust in the engine).
+	if (touch_chat_hist_off > 0.5)
+		touch_chat_hist_off += Touch_Chat_HistPitch();
 	strcpy(touch_chat_line[touch_chat_head], line);
 	touch_chat_head = (touch_chat_head + 1) % TOUCH_CHAT_HISTORY;
 	if (touch_chat_count < TOUCH_CHAT_HISTORY)
@@ -250,6 +274,9 @@ void Touch_Chat_PickAccept(int row)
 	string head = strcat(substring(touch_chat_text, 0, touch_chat_pick_at), "@",
 		touch_chat_pick_name[row], " ");
 	string tail = substring(touch_chat_text, touch_chat_caret, strlen(touch_chat_text) - touch_chat_caret);
+	// exactly one space after the name: one already there is used, not doubled
+	if (substring(tail, 0, 1) == " ")
+		tail = substring(tail, 1, strlen(tail) - 1);
 	if (strlen(head) + strlen(tail) <= autocvar_touch_kb_maxlen)
 	{
 		strcpy(touch_chat_text, strcat(head, tail));
@@ -283,11 +310,30 @@ float Touch_Chat_PickRowH(void)
 	return Touch_MMToUnits(TOUCH_MM_COMFORT) * 0.8;
 }
 
+// The list sits BELOW the field when it fits above the sheet's bottom edge (the
+// chat wedge is at the top of the screen, and the field is just under the header
+// so there is nearly always room); only when it does not, it goes above the field.
+float Touch_Chat_PickBelowStart(void)
+{
+	return Touch_Chat_FieldCenter().y + Touch_Chat_FieldHalf().y + Touch_Chat_Pad() * 0.5;
+}
+
+bool Touch_Chat_PickBelow(void)
+{
+	int shown = min(touch_chat_pick_n, TOUCH_CHAT_PICK_ROWS);
+	float h = Touch_Chat_PickRowH();
+	float extra = (touch_chat_pick_n > TOUCH_CHAT_PICK_ROWS) ? h : 0;
+	float limit = Touch_Chat_SheetCenter().y + Touch_Chat_InnerHalf().y;
+	return Touch_Chat_PickBelowStart() + shown * h + extra <= limit;
+}
+
 vector Touch_Chat_PickRowCenter(int row)
 {
 	vector fc = Touch_Chat_FieldCenter();
 	vector fh = Touch_Chat_FieldHalf();
 	float h = Touch_Chat_PickRowH();
+	if (Touch_Chat_PickBelow())
+		return eX * fc.x + eY * (Touch_Chat_PickBelowStart() + (row + 0.5) * h);
 	// above the typing line, which is above the field
 	float top = fc.y - fh.y - h * 0.8;
 	return eX * fc.x + eY * (top - (row + 0.5) * h);
@@ -305,6 +351,32 @@ int Touch_Chat_PickHit(vector p)
 		if (Touch_HitRectPx(p, Touch_Chat_PickRowCenter(i), Touch_Chat_PickRowHalf(), 1.0))
 			return touch_chat_pick_off + i;
 	return -1;
+}
+
+// The history area: under the field, down to the sheet's bottom edge.
+float Touch_Chat_HistTop(void)
+{
+	return Touch_Chat_FieldCenter().y + Touch_Chat_FieldHalf().y + TOUCH_SPACE_2 * Touch_UIScale();
+}
+
+float Touch_Chat_HistBottom(void)
+{
+	return Touch_Chat_SheetCenter().y + Touch_Chat_InnerHalf().y;
+}
+
+bool Touch_Chat_HistHit(vector p)
+{
+	vector c = Touch_Chat_SheetCenter();
+	vector inner = Touch_Chat_InnerHalf();
+	return fabs(p.x - c.x) <= inner.x && p.y >= Touch_Chat_HistTop() && p.y <= Touch_Chat_HistBottom();
+}
+
+// The furthest the backlog can be pulled: the oldest line at the top.
+float Touch_Chat_HistMax(void)
+{
+	float pitch = Touch_Chat_HistPitch();
+	int fits = floor((Touch_Chat_HistBottom() - Touch_Chat_HistTop()) / pitch);
+	return max(0, (touch_chat_count - fits) * pitch);
 }
 
 // 0 is the oldest line still held.
@@ -368,6 +440,8 @@ bool touch_chatlog_active;     // a finger is in the box
 int touch_chatlog_icon;        // ... and it began on this icon (0 none, 1..4 as above)
 vector touch_chatlog_down;
 float touch_chatlog_accum;
+float touch_chatlog_vel;      // smoothed finger speed, screen heights per second (+ shows older lines)
+float touch_chatlog_last_t;
 
 // which: 0 the scroll box, 1..4 an icon. False when the engine has not
 // published that rect.
@@ -415,6 +489,10 @@ int Touch_Chat_OnDown(vector p)
 		touch_chatlog_icon = Touch_ChatLog_IconAt(p);
 		touch_chatlog_down = p;
 		touch_chatlog_accum = 0;
+		touch_chatlog_vel = 0;
+		touch_chatlog_last_t = time;
+		if (!touch_chatlog_icon)
+			localcmd("\ntouch_chatlog_drag 0\n"); // a touch stops any coasting
 		return TOUCH_ROLE_CHAT;
 	}
 	if (!Touch_Chat_PillHit(p))
@@ -430,18 +508,18 @@ void Touch_Chat_OnMove(vector p)
 	{
 		if (touch_chatlog_icon)
 			return;
-		// Dragging down brings older lines into view.
-		float step = Touch_ChatLog_LineH();
-		if (step <= 0)
-			return;
-		touch_chatlog_accum += p.y - touch_chatlog_down.y;
+		// Dragging down brings older lines into view: the log follows the finger by the pixel
+		// (the engine scrolls smoothly and draws only the rows on show).
+		float dy = p.y - touch_chatlog_down.y;
 		touch_chatlog_down = p;
-		int lines = floor(fabs(touch_chatlog_accum) / step);
-		if (lines > 0)
+		float uih = Touch_UISize().y;
+		if (dy != 0 && uih > 0)
 		{
-			int dir = (touch_chatlog_accum > 0) ? 1 : -1;
-			localcmd(sprintf("\ntouch_chatlog_scroll %d\n", dir * lines));
-			touch_chatlog_accum -= dir * lines * step;
+			localcmd(sprintf("\ntouch_chatlog_drag %f\n", dy / uih));
+			float dtm = time - touch_chatlog_last_t;
+			if (dtm > 0)
+				touch_chatlog_vel = touch_chatlog_vel * 0.6 + (dy / uih / dtm) * 0.4;
+			touch_chatlog_last_t = time;
 		}
 		return;
 	}
@@ -460,6 +538,8 @@ void Touch_Chat_OnUp(vector p)
 	if (touch_chatlog_active)
 	{
 		touch_chatlog_active = false;
+		if (!touch_chatlog_icon && time - touch_chatlog_last_t < 0.08 && fabs(touch_chatlog_vel) > 0.05)
+			localcmd(sprintf("\ntouch_chatlog_fling %f\n", touch_chatlog_vel)); // let go while moving: it coasts on
 		if (touch_chatlog_icon && Touch_ChatLog_RectHit(p, touch_chatlog_icon))
 		{
 			if (touch_chatlog_icon == 1) localcmd("\ntouch_chatlog_share\n");
@@ -792,6 +872,14 @@ void Touch_Chat_PointerDown(vector p)
 		Touch_Widget_FieldTouched();
 		return;
 	}
+	if (Touch_Chat_HistHit(p) && touch_chat_count > 0)
+	{
+		touch_chat_hist_press = true;
+		touch_chat_hist_vel = 0;
+		touch_chat_hist_last_y = p.y;
+		touch_chat_hist_last_t = time;
+		return;
+	}
 	if (Touch_Kb_Hit(p))
 	{
 		touch_chat_hot_row = Touch_Kb_HitRow();
@@ -802,6 +890,18 @@ void Touch_Chat_PointerDown(vector p)
 
 void Touch_Chat_PointerMove(vector p)
 {
+	if (touch_chat_hist_press)
+	{
+		// The backlog follows the finger by the pixel; the speed is kept for the coast.
+		float dy = p.y - touch_chat_hist_last_y;
+		float dtm = time - touch_chat_hist_last_t;
+		touch_chat_hist_off = bound(0, touch_chat_hist_off + dy, Touch_Chat_HistMax());
+		if (dtm > 0)
+			touch_chat_hist_vel = touch_chat_hist_vel * 0.6 + (dy / dtm) * 0.4;
+		touch_chat_hist_last_y = p.y;
+		touch_chat_hist_last_t = time;
+		return;
+	}
 	if (touch_chat_pick_press)
 	{
 		// Dragging the list: it follows the finger, a row at a time.
@@ -858,6 +958,14 @@ void Touch_Chat_PointerMove(vector p)
 
 void Touch_Chat_PointerUp(void)
 {
+	if (touch_chat_hist_press)
+	{
+		touch_chat_hist_press = false;
+		// stopped before letting go: no coast
+		if (time - touch_chat_hist_last_t > 0.08)
+			touch_chat_hist_vel = 0;
+		return;
+	}
 	if (touch_chat_field_hot)
 	{
 		touch_chat_field_hot = false;
@@ -945,6 +1053,16 @@ void Touch_Chat_Frame(void)
 	}
 	else if (!touch_chat_pick_press)
 		touch_chat_pick_vel = 0;
+	// The backlog keeps coasting after a flick, slowing to a stop, and halts at either end.
+	if (!touch_chat_hist_press && touch_chat_hist_vel != 0)
+	{
+		float hmax = Touch_Chat_HistMax();
+		touch_chat_hist_off += touch_chat_hist_vel * dt;
+		touch_chat_hist_vel *= exp(-3.5 * dt);
+		if (fabs(touch_chat_hist_vel) < 4 || touch_chat_hist_off <= 0 || touch_chat_hist_off >= hmax)
+			touch_chat_hist_vel = 0;
+		touch_chat_hist_off = bound(0, touch_chat_hist_off, hmax);
+	}
 	// Keys are released on open, but a sheet that stays open across a respawn
 	// must not let anything creep back on.
 	Touch_ReleaseAll();
@@ -989,19 +1107,32 @@ void Touch_Chat_DrawHistory(float alpha)
 	}
 
 	// Newest at the bottom, next to the field being typed in, so the reply is
-	// beside what it replies to.
-	int shown = min(fits, touch_chat_count);
-	int i;
-	for (i = 0; i < shown; i += 1)
+	// beside what it replies to. Pulled down by hist_off pixels; only the rows
+	// that touch the area are looked up and drawn, however long the backlog is.
+	touch_chat_hist_off = bound(0, touch_chat_hist_off, max(0, (touch_chat_count - fits) * pitch));
+	float area_top = bottom - fits * pitch;
+	int whole = floor(touch_chat_hist_off / pitch);
+	float frac = touch_chat_hist_off - whole * pitch;
+	int j0 = touch_chat_count - fits - whole;
+	int mfirst = (frac > 0.001) ? -1 : 0;
+	int mlast = fits - 1;
+	if (j0 + mfirst < 0)
+		mfirst = -j0;
+	if (j0 + mlast > touch_chat_count - 1)
+		mlast = touch_chat_count - 1 - j0;
+	drawsetcliparea_builtin(left, area_top, inner.x * 2, fits * pitch);
+	int m;
+	for (m = mfirst; m <= mlast; m += 1)
 	{
-		string line = Touch_Chat_Line(touch_chat_count - shown + i);
-		float y = bottom - (shown - i) * pitch + pitch * 0.5;
+		string line = Touch_Chat_Line(j0 + m);
+		float y = area_top + m * pitch + frac;
 		// Colour-coded: player names carry team and identity colours, and
 		// stripping them would lose who said what.
-		drawcolorcodedstring(eX * left + eY * (y - fs * 0.5), line, '1 1 0' * fs,
+		drawcolorcodedstring(eX * left + eY * (y + (pitch - fs) * 0.5), line, '1 1 0' * fs,
 			alpha * TOUCH_A_INK, DRAWFLAG_NORMAL);
 		Touch_DebugAddFills(1);
 	}
+	drawresetcliparea();
 }
 
 void Touch_Chat_Draw(void)
@@ -1045,19 +1176,37 @@ void Touch_Chat_Draw(void)
 		Touch_Shape_LabelAligned(eX * (sc.x - inner.x) + eY * (Touch_Chat_FieldCenter().y - Touch_Chat_FieldHalf().y - Touch_Chat_PickRowH() * 0.4),
 			TOUCH_FONT_READOUT_SM * Touch_UIScale(), typing, -1, TOUCH_C_INK, alpha * TOUCH_A_INK);
 	int pi;
-	for (pi = 0; pi < TOUCH_CHAT_PICK_ROWS && touch_chat_pick_off + pi < touch_chat_pick_n; pi += 1)
+	int pshown = min(touch_chat_pick_n - touch_chat_pick_off, TOUCH_CHAT_PICK_ROWS);
+	if (pshown > 0)
 	{
-		int at = touch_chat_pick_off + pi;
-		Touch_Widget_Key(Touch_Chat_PickRowCenter(pi), Touch_Chat_PickRowHalf(),
-			strcat("@", touch_chat_pick_name[at], (touch_chat_pick_spec[at] ? "   spectator" : "")),
-			touch_chat_pick_hot == at, at == 0, false, alpha, TOUCH_C_ACCENT);
+		// Tinted glass like the other panels: translucent dark body, light rim, rounded corners.
+		float prow = Touch_Chat_PickRowH();
+		vector pc = (Touch_Chat_PickRowCenter(0) + Touch_Chat_PickRowCenter(pshown - 1)) * 0.5;
+		vector ph = Touch_Chat_PickRowHalf() + eY * (prow * (pshown - 1) * 0.5);
+		float pr = TOUCH_R_MD * Touch_UIScale();
+		Touch_Shape_RRect(pc, ph, pr, TOUCH_GLASS_SHADOW, alpha * 0.66);
+		Touch_Shape_RRectRing(pc, ph, pr, TOUCH_W_STROKE * Touch_UIScale(), TOUCH_GLASS_HIGHLIGHT, alpha * 0.30);
+		for (pi = 0; pi < pshown; pi += 1)
+		{
+			int at = touch_chat_pick_off + pi;
+			vector rc = Touch_Chat_PickRowCenter(pi);
+			vector rh = Touch_Chat_PickRowHalf();
+			if (touch_chat_pick_hot == at)
+				Touch_Shape_RRect(rc, rh - '3 3 0' * Touch_UIScale(), TOUCH_R_SM * Touch_UIScale(), TOUCH_GLASS_ACCENT, alpha * 0.45);
+			string lab = strcat("@", touch_chat_pick_name[at], (touch_chat_pick_spec[at] ? "   spectator" : ""));
+			Touch_Shape_LabelAligned(eX * (rc.x - rh.x + Touch_Chat_Pad()) + eY * rc.y,
+				Touch_Widget_LabelSize(rh, lab), lab, -1, TOUCH_C_INK, alpha * TOUCH_A_INK);
+		}
 	}
 	// More names than rows: a count says so, and a drag over the list scrolls it.
-	if (touch_chat_pick_n > TOUCH_CHAT_PICK_ROWS)
-		Touch_Shape_LabelAligned(Touch_Chat_PickRowCenter(0) + eX * (Touch_Chat_PickRowHalf().x - TOUCH_SPACE_3 * Touch_UIScale()) - eY * Touch_Chat_PickRowH(),
+	if (touch_chat_pick_n > TOUCH_CHAT_PICK_ROWS && pshown > 0)
+	{
+		float cdir = Touch_Chat_PickBelow() ? 1 : -1;
+		Touch_Shape_LabelAligned(Touch_Chat_PickRowCenter(pshown - 1) + eX * (Touch_Chat_PickRowHalf().x - TOUCH_SPACE_3 * Touch_UIScale()) + eY * cdir * Touch_Chat_PickRowH(),
 			TOUCH_FONT_READOUT_SM * Touch_UIScale(),
 			strcat(ftos(touch_chat_pick_off + 1), "-", ftos(min(touch_chat_pick_n, touch_chat_pick_off + TOUCH_CHAT_PICK_ROWS)), " of ", ftos(touch_chat_pick_n)),
 			1, TOUCH_C_INK, alpha * TOUCH_A_INK);
+	}
 
 	Touch_Widget_Field(Touch_Chat_FieldCenter(), Touch_Chat_FieldHalf(),
 		touch_chat_text, "tap to type…", alpha, TOUCH_C_ACCENT, touch_chat_caret);

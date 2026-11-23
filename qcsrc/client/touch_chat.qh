@@ -7,7 +7,7 @@
 // already classifies which prints are chat, and reimplementing that in QC would
 // duplicate it badly. This module owns the backlog and the composer.
 
-const int TOUCH_CHAT_HISTORY = 16;
+const int TOUCH_CHAT_HISTORY = 512;   // lines kept; only the rows on screen are drawn
 
 void Touch_Chat_Reset(void);
 
