@@ -1341,6 +1341,19 @@ bool UIB_HostLocked()
 	return cvar("touch_lan_locked") || cvar("touch_lan_host_password_set");
 }
 
+// "Stormkeep · Deathmatch" for the hosting card (the map's name, not its picture)
+string UIB_PauseMatchLine()
+{
+	string pm = cvar_string("touch_lan_map");
+	string pmode = cvar_string("touch_lan_gametype");
+	if (cvar("g_campaign") && campaign_entries > 0)
+	{
+		pm = campaign_mapname[uib_camp_index];
+		pmode = campaign_gametype[uib_camp_index];
+	}
+	return sprintf(_("%s · %s"), UIB_MapTitle(pm), UIB_ModeName(pmode));
+}
+
 void UIB_BuildPause()
 {
 	if (!UIB_Screen("pause", cvar("_touch_menu_paused") ? _("Pause") : _("Menu")))
@@ -1357,7 +1370,8 @@ void UIB_BuildPause()
 		bool pw = UIB_HostLocked();
 		UIB_Open("host", "card");
 			uib_s("title", _("Hosting on your network"));
-			uib_s("subtitle", _("Others join with one of these addresses"));
+			// the map and mode on one line: the game is visible behind this overlay, so no picture
+			uib_s("subtitle", UIB_PauseMatchLine());
 			uib_s("icon", "host");
 			uib_s("accent", "ember");
 			uib_s("density", "compact");
@@ -1374,7 +1388,7 @@ void UIB_BuildPause()
 			UIB_HostAddressesFree(n);
 		UIB_Close();
 	}
-	if (cardfits)
+	if (cardfits && !hosting)
 	{
 	UIB_Open("match", "card");
 		if (gamestatus & GAME_ISSERVER)
@@ -1388,18 +1402,7 @@ void UIB_BuildPause()
 				pmode = campaign_gametype[uib_camp_index];
 			}
 			uib_s("title", UIB_MapTitle(pm));
-			uib_s("image", strcat("pk3:maps/", pm));
-			if (hosting)
-			{
-				// where others join, and a tap gives the addresses, the lock and who is in
-				int na = UIB_HostAddresses();
-				uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode),
-					na ? sprintf(_("your LAN game at %s"), uib_ids[8]) : _("your LAN game")));
-				UIB_HostAddressesFree(na);
-				uib_j("primary", UIB_A("host.popup", _("Addresses"), "host"));
-			}
-			else
-				uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode), _("your local game")));
+			uib_s("subtitle", sprintf(_("%s · %s"), UIB_ModeName(pmode), _("your local game")));
 		}
 		else
 		{
@@ -1414,11 +1417,10 @@ void UIB_BuildPause()
 			uib_s("subtitle", kind);
 			uib_s("icon", (snet == "lan" || snet == "vpn") ? "lan" : "server");
 		}
-		uib_s("aspect", "21:9");
 	UIB_Close();
 	}
 	UIB_Open("actions", "grid");
-		uib_f("minItem", 200);
+		uib_f("minItem", 160);
 		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
 		UIB_Button("settings", _("Settings"), UIB_A("settings", _("Settings"), "settings"), "secondary");
 		UIB_Button("vote", _("Call a vote"), UIB_A("vote.open", _("Call a vote"), ""), "secondary");
@@ -1474,59 +1476,42 @@ void UIB_BuildLanPopup()
 		return;
 	uib_s("presentation", "dialog");
 	uib_b("dismissable", 1);
-	uib_s("subtitle", _("Others on your Wi-Fi or VPN join with one of these"));
 	uib_j("primary", UIB_AS("host.close", _("Close"), "check", "primary"));
 	bool pw = UIB_HostLocked();
 	int n = UIB_HostAddresses();
-	UIB_Section("addresses", _("Addresses"), false);
-		if (!n)
-			UIB_Text("none", _("No network is up. Connect to Wi-Fi or a VPN and the address shows here."), "warning");
-		for (int i = 0; i < n; ++i)
-		{
-			UIB_Open(sprintf("a%d", i), "row");
-				uib_s("align", "spread");
-				uib_s("label", uib_ids2[8 + i]);
-				uib_s("icon", (substring(uib_ids2[8 + i], 0, 3) == "VPN") ? "vpn" : "wifi");
-				UIB_Open("text", "text");
-					uib_s("body", uib_ids[8 + i]);
-					uib_s("style", "mono");
-					uib_b("selectable", 1);
-				UIB_Close();
-				UIB_Button("copy", _("Copy"), UIB_AText("host.copy", _("Copy"), "copy", "copy", uib_ids[8 + i]), "secondary");
+	if (!n)
+		UIB_Text("none", _("No network is up. Connect to Wi-Fi or a VPN and the address shows here."), "warning");
+	// one row each: icon, label, the address, a small copy button
+	for (int i = 0; i < n; ++i)
+	{
+		UIB_Open(sprintf("a%d", i), "row");
+			uib_s("align", "spread");
+			uib_s("label", uib_ids2[8 + i]);
+			uib_s("icon", (substring(uib_ids2[8 + i], 0, 3) == "VPN") ? "vpn" : "wifi");
+			UIB_Open("text", "text");
+				uib_s("body", uib_ids[8 + i]);
+				uib_s("style", "mono");
+				uib_b("selectable", 1);
 			UIB_Close();
-		}
-		string link = cvar_string("touch_lan_join_link");
-		if (link != "")
-		{
-			UIB_Open("link", "row");
-				uib_s("align", "spread");
-				uib_s("label", _("Link"));
-				uib_s("icon", "link");
-				UIB_Open("text", "text");
-					uib_s("body", link);
-					uib_s("style", "mono");
-					uib_b("selectable", 1);
-				UIB_Close();
-				UIB_Button("copy", _("Copy"), UIB_AText("host.copylink", _("Copy"), "copy", "copy", link), "secondary");
-				UIB_Button("share", _("Share"), UIB_AText("host.share", _("Share"), "share", "share", link), "secondary");
-			UIB_Close();
-		}
-	UIB_Close();
+			UIB_Button("copy", "", UIB_AText("host.copy", "", "copy", "copy", uib_ids[8 + i]), "secondary");
+		UIB_Close();
+	}
 	UIB_HostAddressesFree(n);
-	UIB_Open("lock", "text");
-		uib_s("body", pw ? _("Password set: players need it to join") : _("No password: anyone on your network can join"));
-		uib_s("icon", pw ? "lock" : "unlock");
-		uib_s("tone", pw ? "warning" : "neutral");
-		uib_s("style", "note");
+	// one status line and the one Share action (the join link)
+	string link = cvar_string("touch_lan_join_link");
+	UIB_Open("status", "row");
+		UIB_Open("players", "text");
+			float others = max(0, cvar("touch_lan_playercount") - 1);
+			uib_s("body", sprintf("%s · %s", (pw ? _("Password set") : _("Open")),
+				(others ? sprintf(_("In the game: %s"), cvar_string("touch_lan_players")) : _("nobody joined yet"))));
+			uib_s("icon", pw ? "lock" : "unlock");
+			uib_s("style", "caption");
+			uib_b("live", 1);
+		UIB_Close();
+		if (link != "")
+			UIB_Button("share", _("Share"), UIB_AText("host.share", _("Share"), "share", "share", link), "secondary");
 	UIB_Close();
-	UIB_Open("players", "text");
-		float others = max(0, cvar("touch_lan_playercount") - 1);
-		uib_s("body", others ? sprintf(_("In the game: %s"), cvar_string("touch_lan_players")) : _("Nobody has joined yet"));
-		uib_s("icon", "players");
-		uib_s("style", "caption");
-		uib_b("live", 1);
-	UIB_Close();
-	UIB_Switch("autoclose", _("Close when someone joins"), "cvar:touch_lan_popup_autoclose", _("This popup goes away by itself when the first player joins"));
+	UIB_Switch("autoclose", _("Close when someone joins"), "cvar:touch_lan_popup_autoclose", "");
 	UIB_Done();
 }
 
