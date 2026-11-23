@@ -48,6 +48,9 @@ string uib_qv(string s) = #1219;
 string uib_parent(string id) = #1220;
 string uib_loadinfo() = #1221;
 string uib_thumb(string ref, float w, float h) = #1222;
+float uib_pm_import(string path) = #1223;   // an uploaded player model: check it, keep it (touch_playermodel.c); uib_pm_report() says what happened
+string uib_pm_report() = #1224;             // "ok\t<model>\t<skin>\t<title>" or "err\t<reason>"
+float uib_pm_delete(string model) = #1225;  // remove an uploaded model
 
 bool UIB_EngineHasBridge() { return cvar_string("uib_version") != ""; }
 float uib_gettime(float which) = #67;  // gettime with its mode argument (1: real time now)

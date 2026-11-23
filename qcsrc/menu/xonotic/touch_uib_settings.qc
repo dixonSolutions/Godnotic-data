@@ -70,7 +70,7 @@ string UIB_SecHelp(string k)
 		case "input": return _("Mouse, keyboard and keys");
 		case "touch": return _("Presets, HUD, aim assist, auto-shoot, tactics");
 		case "esp": return _("Offline matches only");
-		case "player": return _("Name and colours");
+		case "player": return _("Name, character, colours");
 		case "privacy": return _("Statistics, identity, web players");
 		case "updates": return _("Version, checks and downloads");
 		case "data": return _("Game data and downloads");
@@ -82,6 +82,9 @@ string UIB_SecHelp(string k)
 }
 
 void UIB_SecContent(string k);
+void UIB_PlayerPage();   // touch_uib_player.qc
+bool UIB_PlayerAction(string a, string payload);
+bool UIB_PlayerNameColour(string hex);
 void UIB_SearchResults(string q);
 void UIB_SearchIndex();
 bool uib_sr_built;
@@ -193,7 +196,6 @@ string UIB_SecTabs(string sec)
 	{
 		case "video": return "display effects view";
 		case "touch": return "feel hud aim auto";
-		case "player": return "profile colours";
 		case "mods": return "client server pages";
 	}
 	return "";
@@ -208,10 +210,6 @@ string UIB_TabLabel(string sec, string tab)
 	if (sec == "touch")
 	{
 		switch (tab) { case "feel": return _("Touch controls"); case "hud": return _("HUD"); case "aim": return _("Aim"); case "auto": return _("Auto-shoot"); }
-	}
-	if (sec == "player")
-	{
-		switch (tab) { case "profile": return _("Profile"); case "colours": return _("Colours"); }
 	}
 	if (sec == "mods")
 	{
@@ -515,49 +513,7 @@ string UIB_Palette()
 	return strcat(s, "]");
 }
 
-void UIB_SecPlayer()
-{
-	UIB_SubTabs("player");
-	if (UIB_SubTab("profile", _("Profile")))
-	{
-	UIB_Open("name", "field");
-		uib_s("label", _("Name"));
-		uib_s("bind", "vm:player.name");
-		uib_s("value", cvar_string("_cl_name"));
-		uib_s("kind", "name");
-		uib_f("maxLength", 32);
-		UIB_Apply("reconnect");
-	UIB_Close();
-	UIB_Text("colourcodes", _("Name colour codes: ^0 to ^9, written into the name"), "caption");
-	UIB_Open("colours", "row");
-		uib_b("wrap", 1);
-		for (int i = 0; i < 10; ++i)
-			UIB_Button(strcat("c", ftos(i)), strcat("^", ftos(i)), UIB_A(strcat("player.colour.", ftos(i)), strcat("^", ftos(i)), ""), "tonal");
-	UIB_Close();
-	UIB_Button("model", _("Player model"), UIB_A("settings.model", _("Player model"), "player"), "secondary");
-	}
-	UIB_Close();
-	if (UIB_SubTab("colours", _("Colours")))
-	{
-	float c = cvar("_cl_color");
-	UIB_Open("shirt", "colour");
-		uib_s("label", _("Shirt colour"));
-		uib_s("bind", "vm:player.shirt");
-		uib_s("value", UIB_ColourHex(floor(c / 16)));
-		uib_j("palette", UIB_Palette());
-		UIB_Apply("reconnect");
-	UIB_Close();
-	UIB_Open("pants", "colour");
-		uib_s("label", _("Pants colour"));
-		uib_s("bind", "vm:player.pants");
-		uib_s("value", UIB_ColourHex(c - 16 * floor(c / 16)));
-		uib_j("palette", UIB_Palette());
-		UIB_Apply("reconnect");
-	UIB_Close();
-	}
-	UIB_Close();
-	UIB_Close();
-}
+void UIB_SecPlayer() { UIB_PlayerPage(); }   // touch_uib_player.qc: one page, no tabs
 
 void UIB_SecPrivacy()
 {
@@ -1198,19 +1154,8 @@ bool UIB_SettingsAction(string node, string a, string payload)
 		}
 		return true;
 	}
-	if (substring(a, 0, 14) == "player.colour.")
-	{
-		string digit = substring(a, 14, -1);
-		if (strlen(digit) == 1 && stof(digit) >= 0 && stof(digit) <= 9)
-		{
-			string nm = strcat(cvar_string("_cl_name"), "^", digit);
-			cvar_set("_cl_name", nm);
-			UIB_VMSet("player.name", nm);
-			localcmd(strcat("\nname \"$_cl_name\"\nsaveconfig\n"));
-			UIB_RebuildAll();
-		}
-		return true;
-	}
+	if (substring(a, 0, 7) == "player.")
+		return UIB_PlayerAction(a, payload);
 	if (a == "mod.open")
 	{
 		// a list's rowPrimary delivered as an action: the row event already chose it
@@ -1314,6 +1259,7 @@ bool UIB_SettingsValue(string node, string value)
 			cvar_set("_cl_name", value);
 			localcmd("\nname \"$_cl_name\"\nsaveconfig\n");
 			return true;
+		case "vm:player.namecolour": return UIB_PlayerNameColour(value);
 		case "vm:player.shirt":
 		case "vm:player.pants":
 		{

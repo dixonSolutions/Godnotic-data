@@ -150,6 +150,7 @@
 #include <menu/xonotic/touch_uib_build.qc> // Touch: UI bridge
 #include <menu/xonotic/touch_uib_screens.qc> // Touch: UI bridge
 #include <menu/xonotic/touch_uib_settings.qc> // Touch: UI bridge
+#include <menu/xonotic/touch_uib_player.qc> // Touch: UI bridge, Settings > Player
 #include <menu/xonotic/touch_uib_join.qc> // Touch: UI bridge, the join popup
 #include <menu/xonotic/touch_uib_touchcontrols.qc> // Touch: UI bridge, Touch controls settings
 #include <menu/xonotic/touch_uid2name.qc> // Touch: UI bridge, the player-statistics question
