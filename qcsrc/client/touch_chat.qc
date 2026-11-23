@@ -356,36 +356,48 @@ void Touch_Chat_DrawPill(float alpha)
 }
 
 // ---------------------------------------------------------------------------
-// The chat log's invisible box and export icon (engine: touch_chatlog.c). The
-// engine publishes where they are, as fractions of the screen, in
-// _touch_chatlog_rect: "x y w h ix iy iw ih lineh". A finger inside the box
-// scrolls the log back (touch_chatlog_scroll); a tap on the icon saves it
-// (touch_chatlog_export). A finger anywhere else is not ours.
-// ---------------------------------------------------------------------------
+// The chat log's invisible box and icons (engine: touch_chatlog.c). The engine
+// publishes where they are, as fractions of the screen, in _touch_chatlog_rect:
+// "x y w h  ix iy iw ih  lineh  cx cy cw ch  px py pw ph  dx dy dw dh". A finger
+// inside the box scrolls the log back (touch_chatlog_scroll). Icons, each a tap:
+// 1 share (touch_chatlog_share, the first four fields after the box), 2 clear
+// (touch_chatlog_clear), 3 copy (touch_chatlog_copy), 4 download
+// (touch_chatlog_download). Fields are only ever appended: an engine without an
+// icon publishes fewer and that icon has no hit. A finger elsewhere is not ours.
 bool touch_chatlog_active;     // a finger is in the box
-bool touch_chatlog_icon;       // ... and it began on the icon
+int touch_chatlog_icon;        // ... and it began on this icon (0 none, 1..4 as above)
 vector touch_chatlog_down;
 float touch_chatlog_accum;
 
-// which: 0 the scroll box, 1 the icon. Returns "" when the engine has none.
+// which: 0 the scroll box, 1..4 an icon. False when the engine has not
+// published that rect.
 bool Touch_ChatLog_RectHit(vector p, int which)
 {
 	if (Touch_Chat_Active() || !cvar("touch_chatlog"))
 		return false;
 	int n = tokenize_console(cvar_string("_touch_chatlog_rect"));
-	if (n < 9)
+	int base = (which <= 1) ? which * 4 : 1 + which * 4; // lineh sits at 8, between share and the rest
+	if (n < base + 4)
 		return false;
 	vector ui = Touch_UISize();
-	float x = stof(argv(which * 4)) * ui.x;
-	float y = stof(argv(which * 4 + 1)) * ui.y;
-	float w = stof(argv(which * 4 + 2)) * ui.x;
-	float h = stof(argv(which * 4 + 3)) * ui.y;
+	float x = stof(argv(base)) * ui.x;
+	float y = stof(argv(base + 1)) * ui.y;
+	float w = stof(argv(base + 2)) * ui.x;
+	float h = stof(argv(base + 3)) * ui.y;
 	return p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
+}
+
+int Touch_ChatLog_IconAt(vector p)
+{
+	for (int k = 1; k <= 4; ++k)
+		if (Touch_ChatLog_RectHit(p, k))
+			return k;
+	return 0;
 }
 
 bool Touch_ChatLog_Hit(vector p)
 {
-	return Touch_ChatLog_RectHit(p, 0) || Touch_ChatLog_RectHit(p, 1);
+	return Touch_ChatLog_RectHit(p, 0) || Touch_ChatLog_IconAt(p) != 0;
 }
 
 float Touch_ChatLog_LineH(void)
@@ -400,7 +412,7 @@ int Touch_Chat_OnDown(vector p)
 	if (Touch_ChatLog_Hit(p))
 	{
 		touch_chatlog_active = true;
-		touch_chatlog_icon = Touch_ChatLog_RectHit(p, 1);
+		touch_chatlog_icon = Touch_ChatLog_IconAt(p);
 		touch_chatlog_down = p;
 		touch_chatlog_accum = 0;
 		return TOUCH_ROLE_CHAT;
@@ -448,9 +460,14 @@ void Touch_Chat_OnUp(vector p)
 	if (touch_chatlog_active)
 	{
 		touch_chatlog_active = false;
-		if (touch_chatlog_icon && Touch_ChatLog_RectHit(p, 1))
-			localcmd("\ntouch_chatlog_export\n");
-		touch_chatlog_icon = false;
+		if (touch_chatlog_icon && Touch_ChatLog_RectHit(p, touch_chatlog_icon))
+		{
+			if (touch_chatlog_icon == 1) localcmd("\ntouch_chatlog_share\n");
+			else if (touch_chatlog_icon == 2) localcmd("\ntouch_chatlog_clear\n");
+			else if (touch_chatlog_icon == 3) localcmd("\ntouch_chatlog_copy\n");
+			else localcmd("\ntouch_chatlog_download\n");
+		}
+		touch_chatlog_icon = 0;
 		return;
 	}
 	if (touch_chat_pill_arming)
