@@ -542,16 +542,21 @@ float RB_LayoutGrid(string id, float x, float y, float w, float region)
 	if (n && uib_type(first) == "button")
 	{
 		int cols = max(1, floor((w + gap) / (D(200) + gap)));
+		bool desktop_pause = rb_top == "pause" && !rb_touch && !rb_narrow;
+		if (desktop_pause) cols = min(cols, 2);
 		float bw = (w - (cols - 1) * gap) / cols;
 		int k = 0;
 		for (int i = 0; i < n; ++i)
 		{
 			string c = uib_child(id, i);
 			if (uib_get(c, "hidden") == "1") continue;
-			RB_LayoutButtonAt(c, "action", x + (k % cols) * (bw + gap), y + floor(k / cols) * (D(48) + gap), bw, region, 2);
+			float bh = D(desktop_pause ? 60 : 48);
+			int before = rb_n;
+			RB_LayoutButtonAt(c, "action", x + (k % cols) * (bw + gap), y + floor(k / cols) * (bh + gap), bw, region, 2);
+			if (desktop_pause && rb_n > before) rb_item[rb_n - 1].rb_s_y = bh;
 			++k;
 		}
-		return ceil(k / cols) * (D(48) + gap) - gap;
+		return ceil(k / cols) * (D(desktop_pause ? 60 : 48) + gap) - gap;
 	}
 	if (horiz)
 	{
@@ -1420,6 +1425,13 @@ void RB_Layout()
 	float top = hdr;
 	float cw = min(W - 2 * pad, D(1100));
 	float cx = (W - cw) / 2;
+	if (sc == "pause" && !rb_touch && !rb_narrow)
+	{
+		// A desktop pause menu is a focused panel, not a thin strip across a
+		// mostly empty game view. Keep the same responsive grid on touch screens.
+		cw = min(W - 2 * pad, D(680));
+		cx = (W - cw) / 2;
+	}
 	int n = uib_count(sc);
 	string toolbar = "", actionbar = "", split = "", tabbar = "";
 	for (int i = 0; i < n; ++i)
@@ -1538,6 +1550,15 @@ void RB_Layout()
 		}
 	}
 	rg_content[0] = y + D(28);
+	if (sc == "pause" && !rb_touch && !rb_narrow && rg_content[0] < rg_s[0].y)
+	{
+		// Center the pause controls in the available view while leaving the
+		// header and the bottom action bar in their usual places.
+		float slack = (rg_s[0].y - rg_content[0]) * 0.5;
+		for (int i = 0; i < rb_n; ++i)
+			if (rb_item[i].rb_region == 0)
+				rb_item[i].rb_o_y += slack;
+	}
 	if (uib_get(sc, "kind") == "home" && split == "" && rg_content[0] < rg_s[0].y)
 	{
 		// Home with room to spare: the banner stays at the top, the cards sit in
@@ -1816,15 +1837,16 @@ void RB_DrawButton(entity e, vector p, bool hot, bool pressed)
 	if (e.rb_style != 4)
 		RB_Card(p, e.rb_s, D(12), fill, a, line, la * a);
 	string g = RB_Glyph(e.rb_icon);
-	float sz = D(15);
+	bool desktop_pause = rb_top == "pause" && !rb_touch && !rb_narrow;
+	float sz = D(desktop_pause ? 17 : 15);
 	drawfont = FONT_USER + 3;
 	float tw = RB_TextW(e.rb_t1, sz) + ((g != "") ? D(24) : 0);
 	drawfont = FONT_USER;
 	float tx = p.x + max(D(12), (e.rb_s.x - tw) / 2);
 	if (g != "")
 	{
-		RB_Text(eX * tx + eY * (p.y + (e.rb_s.y - D(17)) / 2), g, D(17), txt, a);
-		tx += D(24);
+		RB_Text(eX * tx + eY * (p.y + (e.rb_s.y - D(desktop_pause ? 19 : 17)) / 2), g, D(desktop_pause ? 19 : 17), txt, a);
+		tx += D(desktop_pause ? 27 : 24);
 	}
 	drawfont = FONT_USER + 3;
 	RB_TextFit(eX * tx + eY * (p.y + (e.rb_s.y - sz) / 2), e.rb_t1, sz, e.rb_s.x - (tx - p.x) - D(8), txt, a);
@@ -3388,12 +3410,15 @@ bool TouchUIB_Draw(float alpha)
 	rb_hover = (!rb_pressed && !rb_touch) ? RB_HitItem(rb_mouse) : -1;
 
 	drawresetcliparea();
-	RB_Fill('0 0 0', rb_scr, RB_BG, alpha);
+	// The pause screen sits over the live match; dim it enough for contrast
+	// while keeping the world visible behind the controls.
+	float bg_alpha = rb_top == "pause" ? alpha * 0.42 : alpha;
+	RB_Fill('0 0 0', rb_scr, RB_BG, bg_alpha);
 	string bg = uib_get(top, "background");
 	if (bg != "")
-		RB_Image(bg, '0 0 0', rb_scr, 0.2 * alpha, false);
+		RB_Image(bg, '0 0 0', rb_scr, 0.2 * bg_alpha, false);
 	for (int i = 0; i < 6; ++i)
-		RB_Fill(eY * (rb_scr.y * (0.5 + i * 0.085)), eX * rb_scr.x + eY * (rb_scr.y * 0.09), RB_BG, 0.13 * alpha);
+		RB_Fill(eY * (rb_scr.y * (0.5 + i * 0.085)), eX * rb_scr.x + eY * (rb_scr.y * 0.09), RB_BG, 0.13 * bg_alpha);
 	float ta = rb_reduced ? 1 : (rb_trans * rb_trans * (3 - 2 * rb_trans));
 	rb_a = alpha * ta;
 	RB_DrawRegion(0);
