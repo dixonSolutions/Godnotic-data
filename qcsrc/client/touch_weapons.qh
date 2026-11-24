@@ -9,8 +9,14 @@ void Touch_Weapons_AddSlot(vector pos, vector size, float impulse, bool owned);
 void Touch_Weapons_SetGrip(vector pos, vector size, float u, int rows);
 bool Touch_Weapons_GripHit(vector p);
 // The NADE row (the nades mutator; touch_nade.c in the engine says when).
-void Touch_Weapons_SetNade(vector pos, vector size, bool pressable);
-bool Touch_Weapons_NadeHit(vector p);
+void Touch_Weapons_SetNade(vector pos, vector size, bool pressable, float gap);
+// The HOOK entry (weapon list) and NADE row (action row): what a finger lands on.
+const int TOUCH_WEAP_ACT_NONE = 0;
+const int TOUCH_WEAP_ACT_HOOK = 1;
+const int TOUCH_WEAP_ACT_NADE = 2;
+const int TOUCH_WEAP_ACT_DEAD = 3; // exists, cannot be pressed now (or the gap): takes the finger, does nothing
+void Touch_Weapons_SetHook(vector pos, vector size, bool pressable);
+int Touch_Weapons_ActionKind(vector p);
 float Touch_Weapons_GripU(void);
 int Touch_Weapons_GripRows(void);
 bool Touch_Weapons_Hit(vector p);

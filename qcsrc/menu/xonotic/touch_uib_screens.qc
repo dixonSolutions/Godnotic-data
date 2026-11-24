@@ -1425,6 +1425,8 @@ void UIB_BuildPause()
 		UIB_Button("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), UIB_AS("resume", (cvar("_touch_menu_paused") ? _("Resume") : _("Back to game")), "resume", "primary"), "primary");
 		UIB_Button("settings", _("Settings"), UIB_A("settings", _("Settings"), "settings"), "secondary");
 		UIB_Button("vote", _("Call a vote"), UIB_A("vote.open", _("Call a vote"), ""), "secondary");
+		// every chat line and player event of this session, with times (touch_chatlog.c)
+		UIB_Button("chatlog", _("Chat log"), UIB_A("chatlog", _("Chat log"), ""), "secondary");
 		// the one who runs the game (this device's own, or anyone's with the rcon password)
 		UIB_Button("control", _("Server control"), UIB_A("ctl.open", _("Server control"), "settings"), "secondary");
 		// the engine's action list (_touch_act_*): Join game while watching, Spectate while playing
@@ -2368,6 +2370,7 @@ void UIB_Action(string node, string a, string payload)
 		case "ctl.god": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd god\n"); return;
 		case "ctl.noclip": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd noclip\n"); return;
 		case "ctl.give": if (UIB_CtlAllowed() && UIB_CtlCheats()) localcmd("\ncmd give all\n"); return;
+		case "chatlog": localcmd("\ntouch_chatlog_open\n"); m_hide(); return;
 		case "vote.open": UIB_Push("vote.call"); return;
 		case "vote.restart": localcmd("cmd vote call restart\n"); m_hide(); return;
 		case "vote.endmatch": localcmd("cmd vote call endmatch\n"); m_hide(); return;

@@ -231,10 +231,6 @@ void Touch_DrawOverlay(float overlayAlpha)
 	if (zoom_alpha > 0)
 		Touch_DrawCircleWidget(autocvar_touch_zoom_x, autocvar_touch_zoom_y,
 			autocvar_touch_zoom_size, "ZOOM", Touch_ZoomHeld(), overlayAlpha * zoom_alpha, TOUCH_C_ACCENT);
-	float hook_alpha = Touch_HookAlpha();
-	if (hook_alpha > 0)
-		Touch_DrawCircleWidget(autocvar_touch_hook_x, autocvar_touch_hook_y,
-			autocvar_touch_hook_size, TOUCH_LABEL_HOOK, Touch_HookHeld(), overlayAlpha * hook_alpha, TOUCH_C_ACCENT);
 	if (Touch_TurnAvailable() || (autocvar_touch_turn_visible && Touch_CustomizeActive()))
 		Touch_DrawCircleWidget(autocvar_touch_turn_x, autocvar_touch_turn_y,
 			autocvar_touch_turn_size, TOUCH_LABEL_TURN, Touch_TurnHeld(), overlayAlpha, TOUCH_C_ACCENT);

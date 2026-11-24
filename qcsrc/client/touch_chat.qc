@@ -428,57 +428,36 @@ void Touch_Chat_DrawPill(float alpha)
 }
 
 // ---------------------------------------------------------------------------
-// The chat log's invisible box and icons (engine: touch_chatlog.c). The engine
-// publishes where they are, as fractions of the screen, in _touch_chatlog_rect:
-// "x y w h  ix iy iw ih  lineh  cx cy cw ch  px py pw ph  dx dy dw dh". A finger
-// inside the box scrolls the log back (touch_chatlog_scroll). Icons, each a tap:
-// 1 share (touch_chatlog_share, the first four fields after the box), 2 clear
-// (touch_chatlog_clear), 3 copy (touch_chatlog_copy), 4 download
-// (touch_chatlog_download). Fields are only ever appended: an engine without an
-// icon publishes fewer and that icon has no hit. A finger elsewhere is not ours.
-bool touch_chatlog_active;     // a finger is in the box
-int touch_chatlog_icon;        // ... and it began on this icon (0 none, 1..4 as above)
-vector touch_chatlog_down;
-float touch_chatlog_accum;
-float touch_chatlog_vel;      // smoothed finger speed, screen heights per second (+ shows older lines)
-float touch_chatlog_last_t;
-
-// which: 0 the scroll box, 1..4 an icon. False when the engine has not
-// published that rect.
-bool Touch_ChatLog_RectHit(vector p, int which)
-{
-	if (Touch_Chat_Active() || !cvar("touch_chatlog"))
-		return false;
-	int n = tokenize_console(cvar_string("_touch_chatlog_rect"));
-	int base = (which <= 1) ? which * 4 : 1 + which * 4; // lineh sits at 8, between share and the rest
-	if (n < base + 4)
-		return false;
-	vector ui = Touch_UISize();
-	float x = stof(argv(base)) * ui.x;
-	float y = stof(argv(base + 1)) * ui.y;
-	float w = stof(argv(base + 2)) * ui.x;
-	float h = stof(argv(base + 3)) * ui.y;
-	return p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
-}
-
-int Touch_ChatLog_IconAt(vector p)
-{
-	for (int k = 1; k <= 4; ++k)
-		if (Touch_ChatLog_RectHit(p, k))
-			return k;
-	return 0;
-}
+// The chat feed, its icons and the chat log (engine: touch_chatlog.c). The
+// engine draws them and decides what a press means: it publishes the area that
+// takes a finger, as fractions of the screen, in _touch_chatlog_claim
+// ("x y w h"; the whole screen while the log is open). A finger that lands in
+// it is ours from down to up, and is forwarded as touch_chatlog_ptr
+// down|move|up <fx> <fy> (fractions too): taps on icons and names, dragging and
+// flinging the log. A finger elsewhere is not ours.
+// ---------------------------------------------------------------------------
+bool touch_chatlog_active;     // a finger is in the claimed area
 
 bool Touch_ChatLog_Hit(vector p)
 {
-	return Touch_ChatLog_RectHit(p, 0) || Touch_ChatLog_IconAt(p) != 0;
+	if (Touch_Chat_Active() || !cvar("touch_chatlog"))
+		return false;
+	if (tokenize_console(cvar_string("_touch_chatlog_claim")) < 4)
+		return false;
+	vector ui = Touch_UISize();
+	float x = stof(argv(0)) * ui.x;
+	float y = stof(argv(1)) * ui.y;
+	float w = stof(argv(2)) * ui.x;
+	float h = stof(argv(3)) * ui.y;
+	return p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
 }
 
-float Touch_ChatLog_LineH(void)
+void Touch_ChatLog_Forward(string phase, vector p)
 {
-	if (tokenize_console(cvar_string("_touch_chatlog_rect")) < 9)
-		return 0;
-	return max(4, stof(argv(8)) * Touch_UISize().y);
+	vector ui = Touch_UISize();
+	if (ui.x <= 0 || ui.y <= 0)
+		return;
+	localcmd(sprintf("\ntouch_chatlog_ptr %s %f %f\n", phase, p.x / ui.x, p.y / ui.y));
 }
 
 int Touch_Chat_OnDown(vector p)
@@ -486,13 +465,7 @@ int Touch_Chat_OnDown(vector p)
 	if (Touch_ChatLog_Hit(p))
 	{
 		touch_chatlog_active = true;
-		touch_chatlog_icon = Touch_ChatLog_IconAt(p);
-		touch_chatlog_down = p;
-		touch_chatlog_accum = 0;
-		touch_chatlog_vel = 0;
-		touch_chatlog_last_t = time;
-		if (!touch_chatlog_icon)
-			localcmd("\ntouch_chatlog_drag 0\n"); // a touch stops any coasting
+		Touch_ChatLog_Forward("down", p);
 		return TOUCH_ROLE_CHAT;
 	}
 	if (!Touch_Chat_PillHit(p))
@@ -506,21 +479,7 @@ void Touch_Chat_OnMove(vector p)
 {
 	if (touch_chatlog_active)
 	{
-		if (touch_chatlog_icon)
-			return;
-		// Dragging down brings older lines into view: the log follows the finger by the pixel
-		// (the engine scrolls smoothly and draws only the rows on show).
-		float dy = p.y - touch_chatlog_down.y;
-		touch_chatlog_down = p;
-		float uih = Touch_UISize().y;
-		if (dy != 0 && uih > 0)
-		{
-			localcmd(sprintf("\ntouch_chatlog_drag %f\n", dy / uih));
-			float dtm = time - touch_chatlog_last_t;
-			if (dtm > 0)
-				touch_chatlog_vel = touch_chatlog_vel * 0.6 + (dy / uih / dtm) * 0.4;
-			touch_chatlog_last_t = time;
-		}
+		Touch_ChatLog_Forward("move", p);
 		return;
 	}
 	if (!touch_chat_pill_arming)
@@ -538,16 +497,7 @@ void Touch_Chat_OnUp(vector p)
 	if (touch_chatlog_active)
 	{
 		touch_chatlog_active = false;
-		if (!touch_chatlog_icon && time - touch_chatlog_last_t < 0.08 && fabs(touch_chatlog_vel) > 0.05)
-			localcmd(sprintf("\ntouch_chatlog_fling %f\n", touch_chatlog_vel)); // let go while moving: it coasts on
-		if (touch_chatlog_icon && Touch_ChatLog_RectHit(p, touch_chatlog_icon))
-		{
-			if (touch_chatlog_icon == 1) localcmd("\ntouch_chatlog_share\n");
-			else if (touch_chatlog_icon == 2) localcmd("\ntouch_chatlog_clear\n");
-			else if (touch_chatlog_icon == 3) localcmd("\ntouch_chatlog_copy\n");
-			else localcmd("\ntouch_chatlog_download\n");
-		}
-		touch_chatlog_icon = 0;
+		Touch_ChatLog_Forward("up", p);
 		return;
 	}
 	if (touch_chat_pill_arming)

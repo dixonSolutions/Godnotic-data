@@ -195,6 +195,9 @@ void XonoticMobileControlsTab_fill(entity me)
 			_("Tap FIRE to start firing and tap again to stop")));
 		me.TD(me, 1, 2.4, e = makeXonoticCheckBox_T(0, "touch_dodge_visible", _("Dodge button"),
 			_("Show a dodge button next to the move stick")));
+	me.TR(me);
+		me.TD(me, 1, 6, e = makeXonoticCheckBox_T(0, "cl_touch_dash_boost", _("Weapon boost on DASH"),
+			_("DASH can fire a rocket or blaster at the floor or a wall to launch you up or forward, when that gets you where you are going better than a dodge. Hold DASH to pick the weapon and direction")));
 	// Bunny-hopping needs jump held. The default keeps HOP a plain button and
 	// puts the hold on its own KEEP switch, apart from it, so a jump never
 	// turns into hopping by accident.
@@ -267,13 +270,11 @@ void XonoticMobileHudTab_fill(entity me)
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticHeaderLabel(_("Grappling hook")));
 	me.TR(me);
-		me.TD(me, 1, 1.2, e = makeXonoticTextLabel(0, _("Hook button:")));
+		me.TD(me, 1, 1.2, e = makeXonoticTextLabel(0, _("Hook in weapon bar:")));
 		me.TD(me, 1, 1.2, e = makeXonoticRadioButton_T(5, "touch_hook_visible", "0", _("Off"),
-			_("Never show the HOOK button")));
-		me.TD(me, 1, 1.8, e = makeXonoticRadioButton_T(5, "touch_hook_visible", "2", _("When available"),
-			_("Show HOOK while you have a grappling hook: the server's offhand hook, or the Hook weapon with fuel. Hold it to hook, let go to release")));
-		me.TD(me, 1, 1.8, e = makeXonoticRadioButton_T(5, "touch_hook_visible", "1", _("Always"),
-			_("Always show HOOK. Where there is no hook it sends what the hook key would")));
+			_("Leave the hook out of the weapon bar")));
+		me.TD(me, 1, 1.8, e = makeXonoticRadioButton_T(5, "touch_hook_visible", "2", _("On"),
+			_("A HOOK entry after the weapons while the server has a grappling hook (the offhand hook, or the Hook weapon). Hold it to hook, let go to release")));
 	me.TR(me);
 		me.TD(me, 1, me.columns, e = makeXonoticCheckBox_T(0, "cl_touch_hook_rescue", _("Catch me with the hook when I fall off the map"),
 			_("Falling with nothing below to land on, the hook fires at something it can catch, pulls you back and lets go over ground. Only with a hook, only in touch mode")));

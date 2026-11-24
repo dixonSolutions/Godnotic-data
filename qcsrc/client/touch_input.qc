@@ -503,9 +503,16 @@ int Touch_AssignRole(vector p)
 	if (Touch_Weapons_GripHit(p))
 		return TOUCH_ROLE_WEPSIZE;
 
-	// The NADE row, under the last weapon.
-	if (Touch_Weapons_NadeHit(p))
+	// The HOOK entry and the NADE row: one band each, a row that cannot be
+	// pressed now (or the gap between them) keeps the finger so that no
+	// neighbouring row gets it (touch_strip.h in the engine, the same rule).
+	int act = Touch_Weapons_ActionKind(p);
+	if (act == TOUCH_WEAP_ACT_HOOK)
+		return Touch_RoleOwned(TOUCH_ROLE_HOOK) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_HOOK;
+	if (act == TOUCH_WEAP_ACT_NADE)
 		return Touch_RoleOwned(TOUCH_ROLE_NADE) ? TOUCH_ROLE_IGNORED : TOUCH_ROLE_NADE;
+	if (act == TOUCH_WEAP_ACT_DEAD)
+		return TOUCH_ROLE_IGNORED;
 
 	// Stock vertical weapons strip — tap icon to switch (replaces WEP button).
 	if (Touch_Weapons_Hit(p))
@@ -533,8 +540,6 @@ int Touch_AssignRole(vector p)
 		return TOUCH_ROLE_WEAPON;
 	if (Touch_ZoomAvailable() && Touch_HitCircle(p, autocvar_touch_zoom_x, autocvar_touch_zoom_y, autocvar_touch_zoom_size, 1.10))
 		return TOUCH_ROLE_ZOOM;
-	if (Touch_HookAvailable() && Touch_HitCircle(p, autocvar_touch_hook_x, autocvar_touch_hook_y, autocvar_touch_hook_size, 1.10))
-		return TOUCH_ROLE_HOOK;
 	if (Touch_TurnAvailable() && Touch_HitCircle(p, autocvar_touch_turn_x, autocvar_touch_turn_y, autocvar_touch_turn_size, 1.10))
 		return TOUCH_ROLE_TURN;
 	if (autocvar_touch_reload_visible && Touch_HitCircle(p, autocvar_touch_reload_x, autocvar_touch_reload_y, autocvar_touch_reload_size, 1.10))
@@ -1061,8 +1066,7 @@ void Touch_Frame(void)
 			localcmd("weapon_reload\n");
 		else if (role == TOUCH_ROLE_DODGE && touch_finger_first[i])
 		{
-			localcmd("+dodge\n");
-			localcmd("-dodge\n");
+			localcmd("touch_dash\n"); // Touch: the smart DASH (engine, touch_dash.c): a dodge or a weapon boost
 		}
 
 		touch_finger_first[i] = false;

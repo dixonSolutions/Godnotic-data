@@ -98,6 +98,9 @@ void Touch_DefineCvars(void)
 	// (_cl_touch_hook_avail). 1 = always, 0 = never. Up and in from FIRE,
 	// between ALT and ZOOM, and left of the weapon strip at its largest
 	// (scripts/audit-touch-ergonomics.py).
+	// touch_hook_x / _y / _size are retired with the HOOK button (the hook is an
+	// entry of the weapon strip now); kept so an old saved layout still loads.
+	// touch_hook_visible: 0 hides the entry, anything else shows it (old 1 and 2).
 	Touch_RegisterCvar("touch_hook_x", "0.765");
 	Touch_RegisterCvar("touch_hook_y", "0.615");
 	Touch_RegisterCvar("touch_hook_size", "0.100"); // 18 mm, like ZOOM and ALT

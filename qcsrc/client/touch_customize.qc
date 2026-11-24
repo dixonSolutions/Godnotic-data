@@ -53,8 +53,6 @@ vector Touch_Customize_GetWidgetPos(int wid)
 			return autocvar_touch_reload_x * eX + autocvar_touch_reload_y * eY + autocvar_touch_reload_size * eZ;
 		case TOUCH_WIDGET_FIRE2:
 			return autocvar_touch_fire2_x * eX + autocvar_touch_fire2_y * eY + autocvar_touch_fire2_size * eZ;
-		case TOUCH_WIDGET_HOOK:
-			return autocvar_touch_hook_x * eX + autocvar_touch_hook_y * eY + autocvar_touch_hook_size * eZ;
 		case TOUCH_WIDGET_TURN:
 			return autocvar_touch_turn_x * eX + autocvar_touch_turn_y * eY + autocvar_touch_turn_size * eZ;
 		case TOUCH_WIDGET_HOPLOCK:
@@ -88,8 +86,6 @@ void Touch_Customize_SetWidgetPos(int wid, float nx, float ny)
 			cvar_set("touch_reload_x", ftos(nx)); cvar_set("touch_reload_y", ftos(ny)); break;
 		case TOUCH_WIDGET_FIRE2:
 			cvar_set("touch_fire2_x", ftos(nx)); cvar_set("touch_fire2_y", ftos(ny)); break;
-		case TOUCH_WIDGET_HOOK:
-			cvar_set("touch_hook_x", ftos(nx)); cvar_set("touch_hook_y", ftos(ny)); break;
 		case TOUCH_WIDGET_TURN:
 			cvar_set("touch_turn_x", ftos(nx)); cvar_set("touch_turn_y", ftos(ny)); break;
 		case TOUCH_WIDGET_HOPLOCK:
@@ -115,7 +111,6 @@ string Touch_Customize_WidgetLabel(int wid)
 		case TOUCH_WIDGET_ZOOM: return "ZOOM";
 		case TOUCH_WIDGET_RELOAD: return TOUCH_LABEL_RELOAD;
 		case TOUCH_WIDGET_FIRE2: return TOUCH_LABEL_FIRE2;
-		case TOUCH_WIDGET_HOOK: return TOUCH_LABEL_HOOK;
 		case TOUCH_WIDGET_TURN: return TOUCH_LABEL_TURN;
 		case TOUCH_WIDGET_HOPLOCK: return TOUCH_LABEL_HOPLOCK;
 		case TOUCH_WIDGET_TOSPEC: return "SPECTATE";
@@ -146,8 +141,9 @@ bool Touch_Customize_WidgetEnabled(int wid)
 		// Contextual ALT (touch_fire2_visible 2) is placed like any other button,
 		// whatever the weapon in hand: edit mode is where it has to be findable.
 		case TOUCH_WIDGET_FIRE2: return boolean(autocvar_touch_fire2_visible);
-		// HOOK the same: placed whether or not this server has a hook.
-		case TOUCH_WIDGET_HOOK: return boolean(autocvar_touch_hook_visible);
+		// HOOK is no longer a button: it is an entry of the weapon strip. The
+		// widget number stays so the others keep theirs; it is never placed.
+		case TOUCH_WIDGET_HOOK: return false;
 		case TOUCH_WIDGET_TURN: return boolean(autocvar_touch_turn_visible);
 		// The keep-jumping chip exists only in its own hop mode.
 		case TOUCH_WIDGET_HOPLOCK: return Touch_HopLockShown();

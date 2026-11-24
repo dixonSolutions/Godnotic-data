@@ -166,6 +166,10 @@ void GodnoticGameMenuDialog_fill(entity me)
 		me.TD(me, 1.5, 2, e = TouchGameMenu_SubButton(_("Call a vote"), "TouchVoteCall"));
 	me.TR(me);
 	me.TR(me);
+		// Every chat line and player event of this session, with times (touch_chatlog.c)
+		me.TD(me, 1.5, 2, e = makeGodnoticCommandButton(_("Chat log"), '0 0 0', "touch_chatlog_open", COMMANDBUTTON_CLOSE));
+	me.TR(me);
+	me.TR(me);
 		// Hosting on the LAN (Multiplayer > Create, LAN box): where others
 		// join, and Stop.
 		me.TD(me, 1.5, 1.4, TouchLan_StatusLabel());

@@ -35,6 +35,8 @@ void UIB_SecTouchControls()
 			UIB_Slider("opacity", _("Opacity"), "cvar:touch_opacity", 0.3, 1, 0.05, "percent", "");
 			UIB_Choice("fire", _("Fire button"), "cvar:touch_fire_mode", "segmented", UIB_Opts2("0", _("Hold"), "1", _("Toggle")), "");
 			UIB_Switch("dodge", _("Dodge button"), "cvar:touch_dodge_visible", "");
+			UIB_Switch("dashboost", _("Weapon boost on DASH"), "cvar:cl_touch_dash_boost",
+				_("DASH can fire a rocket or blaster at the floor or a wall to launch you up or forward, when that gets you where you are going better than a dodge. Hold DASH to pick the weapon and direction"));
 			UIB_Switch("firedrag", _("Aim while firing"), "cvar:touch_fire_drag_look",
 				_("Drag your thumb off FIRE to turn while it keeps firing"));
 			UIB_Switch("buttondrag", _("Aim from HOP, DUCK and ALT too"), "cvar:touch_button_drag_look", "");

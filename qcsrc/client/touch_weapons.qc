@@ -4,6 +4,8 @@
 // Well past any real inventory: the stock panel registers every weapon in the
 // registry, owned or not, and a 16-slot table silently dropped the last rows.
 const int TOUCH_WEAP_SLOTS = 64;
+// Sideways forgiveness (and upwards over the first row), of a row's height.
+const float TOUCH_WEAP_FORGIVE = 0.12;
 
 int touch_weap_count;
 vector touch_weap_pos[TOUCH_WEAP_SLOTS];
@@ -17,10 +19,16 @@ vector touch_weap_grip_pos;
 vector touch_weap_grip_size;
 float touch_weap_grip_u;
 int touch_weap_grip_rows;
-// The NADE row, as last drawn (Touch_Weapons_SetNade).
+// The HOOK entry and the NADE row, as last drawn (Touch_Weapons_SetHook/Nade).
+bool touch_weap_hook_row;
+bool touch_weap_hook_press;
+vector touch_weap_hook_pos;
+vector touch_weap_hook_size;
+bool touch_weap_nade_row;
 bool touch_weap_nade;
 vector touch_weap_nade_pos;
 vector touch_weap_nade_size;
+float touch_weap_nade_gap;
 
 // When the slots were built, and when the overlay last drew. Input runs before
 // the HUD each frame, so it reads the slots the previous frame drew; if that
@@ -49,6 +57,9 @@ void Touch_Weapons_BeginFrame(void)
 	touch_weap_count = 0;
 	touch_weap_grip = false;
 	touch_weap_nade = false;
+	touch_weap_nade_row = false;
+	touch_weap_hook_row = false;
+	touch_weap_hook_press = false;
 	touch_weap_built = Touch_Weapons_Now();
 }
 
@@ -78,23 +89,50 @@ void Touch_Weapons_SetGrip(vector pos, vector size, float u, int rows)
 	touch_weap_grip_rows = rows;
 }
 
-// The NADE row takes a finger while there is a grenade to throw or one cooking.
-void Touch_Weapons_SetNade(vector pos, vector size, bool pressable)
+void Touch_Weapons_SetHook(vector pos, vector size, bool pressable)
 {
+	touch_weap_hook_row = true;
+	touch_weap_hook_press = pressable;
+	touch_weap_hook_pos = pos;
+	touch_weap_hook_size = size;
+}
+
+// The NADE row takes a finger while there is a grenade to throw or one cooking;
+// the gap above it (gap high) is dead.
+void Touch_Weapons_SetNade(vector pos, vector size, bool pressable, float gap)
+{
+	touch_weap_nade_row = true;
 	touch_weap_nade = pressable;
 	touch_weap_nade_pos = pos;
 	touch_weap_nade_size = size;
+	touch_weap_nade_gap = gap;
 }
 
-bool Touch_Weapons_NadeHit(vector p)
+// One band per finger, no padding up or down into the next row (sideways only):
+// the old rule padded every row on all four sides and tested NADE only while a
+// grenade was ready, so a finger on the waiting NADE row's top edge landed in
+// the pad of the row above, and with the Hook weapon there that was the hook.
+int Touch_Weapons_ActionKind(vector p)
 {
-	if (!touch_weap_nade || !Touch_Weapons_Fresh())
-		return false;
-	// as forgiving as the rows (Touch_Weapons_HitImpulse)
-	float pad = min(touch_weap_nade_size.x, touch_weap_nade_size.y) * 0.12;
-	vector o = touch_weap_nade_pos;
-	vector s = touch_weap_nade_size;
-	return p.x >= o.x - pad && p.x <= o.x + s.x + pad && p.y >= o.y - pad && p.y <= o.y + s.y + pad;
+	if (!Touch_Weapons_Fresh())
+		return TOUCH_WEAP_ACT_NONE;
+	if (touch_weap_hook_row)
+	{
+		vector o = touch_weap_hook_pos;
+		vector s = touch_weap_hook_size;
+		float pad = s.y * TOUCH_WEAP_FORGIVE;
+		if (p.x >= o.x - pad && p.x <= o.x + s.x + pad && p.y >= o.y && p.y < o.y + s.y)
+			return touch_weap_hook_press ? TOUCH_WEAP_ACT_HOOK : TOUCH_WEAP_ACT_DEAD;
+	}
+	if (touch_weap_nade_row)
+	{
+		vector o = touch_weap_nade_pos;
+		vector s = touch_weap_nade_size;
+		float pad = s.y * TOUCH_WEAP_FORGIVE;
+		if (p.x >= o.x - pad && p.x <= o.x + s.x + pad && p.y >= o.y - touch_weap_nade_gap && p.y < o.y + s.y)
+			return (touch_weap_nade && p.y >= o.y) ? TOUCH_WEAP_ACT_NADE : TOUCH_WEAP_ACT_DEAD;
+	}
+	return TOUCH_WEAP_ACT_NONE;
 }
 
 bool Touch_Weapons_GripHit(vector p)
@@ -130,10 +168,11 @@ float Touch_Weapons_HitImpulse(vector p)
 	{
 		vector o = touch_weap_pos[i];
 		vector s = touch_weap_size[i];
-		// Slightly inflate for fat fingers
-		float pad = min(s.x, s.y) * 0.12;
-		if (p.x >= o.x - pad && p.x <= o.x + s.x + pad
-			&& p.y >= o.y - pad && p.y <= o.y + s.y + pad)
+		// Forgiving sideways, and upwards over the first row; between rows the
+		// bands share their edges (no pad into the row above or below).
+		float pad = s.y * TOUCH_WEAP_FORGIVE;
+		float top = o.y - (i == 0 ? pad : 0);
+		if (p.x >= o.x - pad && p.x <= o.x + s.x + pad && p.y >= top && p.y < o.y + s.y)
 		{
 			if (!touch_weap_owned[i])
 				return -1;
