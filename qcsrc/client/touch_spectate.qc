@@ -67,12 +67,19 @@ string Touch_Spec_BarLabel(int st, int part)
 	if (part == TOUCH_SPEC_BAR_JOIN)
 		return act == TOUCH_SPEC_ACT_JOIN ? "JOIN" : "";
 	if (act == TOUCH_SPEC_ACT_NONE)
-		return (part == TOUCH_SPEC_BAR_MAIN && st != TOUCH_SPEC_NONE) ? "WATCHING" : "";
+		return (part == TOUCH_SPEC_BAR_MAIN && st != TOUCH_SPEC_NONE) ? "Watching" : "";
 	if (part == TOUCH_SPEC_BAR_PREV)
 		return "<";
 	if (part == TOUCH_SPEC_BAR_NEXT)
 		return ">";
-	return "FREE";
+	return "Free";
+}
+
+// TouchSpec_MainLabel: whom the view is on, or Free.
+string Touch_Spec_MainLabel(int st)
+{
+	string target = Touch_ModeTarget();
+	return (st != TOUCH_SPEC_NONE && !Touch_Spec_Flying(st) && target != "") ? target : Touch_Spec_BarLabel(st, TOUCH_SPEC_BAR_MAIN);
 }
 
 // The bar, fitted like touch_spectate.h TouchSpec_BarLayout: all four parts
@@ -88,7 +95,17 @@ void Touch_Spec_BarFit()
 	float w = vid_conwidth, h = vid_conheight;
 	float total = 11.45;
 	float scale = 1;
-	vector c = Touch_WidgetCenter(cvar_or("touch_specbar_x", 0.815), cvar_or("touch_specbar_y", 0.885), 0);
+	vector c = Touch_WidgetCenter(cvar_or("touch_specbar_x", 0.460), cvar_or("touch_specbar_y", 0.930), 0);
+	// the row ends where the lit DUCK button starts (engine spec_bar_layout)
+	float lo = 0;
+	vector duck = Touch_WidgetCenter(Touch_CrouchX(), autocvar_touch_crouch_y, 0);
+	float dr = Touch_WidgetRadius(autocvar_touch_crouch_size);
+	if (cvar("vid_touchscreen") && c.y + hy > duck.y - dr && c.y - hy < duck.y + dr)
+	{
+		if (duck.x > w * 0.5) w = duck.x - dr;
+		else { lo = duck.x + dr; w -= lo; }
+	}
+	c.x -= lo;
 	if (margin * 2 >= w) margin = 0;
 	if (margin * 2 >= h) margin = 0;
 	if (2 * hy > h - 2 * margin) scale = (h - 2 * margin) / (2 * hy);
@@ -99,6 +116,7 @@ void Touch_Spec_BarFit()
 	if (touch_spec_bar_left < margin) touch_spec_bar_left = margin;
 	if (touch_spec_bar_left + total > w - margin) touch_spec_bar_left = w - margin - total;
 	if (touch_spec_bar_left < 0) touch_spec_bar_left = 0;
+	touch_spec_bar_left += lo;
 	touch_spec_bar_cy = c.y;
 	if (touch_spec_bar_cy - hy < margin) touch_spec_bar_cy = margin + hy;
 	if (touch_spec_bar_cy + hy > h - margin) touch_spec_bar_cy = h - margin - hy;
@@ -260,26 +278,20 @@ bool Touch_Spec_DrawOverlay(float alpha)
 	}
 	for (int part = 0; Touch_Spec_BarShown(st) && part < TOUCH_SPEC_BAR_PARTS; ++part)
 	{
-		string label = Touch_Spec_BarLabel(st, part);
+		string label = part == TOUCH_SPEC_BAR_MAIN ? Touch_Spec_MainLabel(st) : Touch_Spec_BarLabel(st, part);
+		if (part == TOUCH_SPEC_BAR_MAIN && Touch_ModeTarget() != "")
+		{
+			// a long name is cut to the pill, not run over the arrows
+			vector half = Touch_Spec_BarHalf(part);
+			float fs = Touch_Widget_LabelSize(half, label);
+			label = textShortenToWidth(label, half.x * 1.84, eX * fs + eY * fs, stringwidth_nocolors);
+		}
 		if (label == "")
 			continue;
 		int act = Touch_Spec_BarAction(st, part);
 		bool held = Touch_RoleOwned(Touch_Spec_ActionRole(act)) && act != TOUCH_SPEC_ACT_NONE;
 		Touch_Widget_Capsule(Touch_Spec_BarCenter(part), Touch_Spec_BarHalf(part), label, held || (part == TOUCH_SPEC_BAR_MAIN && Touch_Spec_Flying(st)), false,
 			(act == TOUCH_SPEC_ACT_NONE ? alpha * 0.6 : alpha), TOUCH_C_ACCENT);
-	}
-	// who is being watched, over the bar
-	string target = Touch_Spec_BarShown(st) ? Touch_ModeTarget() : "";
-	if (target != "")
-	{
-		vector c = Touch_Spec_BarCenter(TOUCH_SPEC_BAR_MAIN);
-		float hy = Touch_Spec_BarHalf(TOUCH_SPEC_BAR_MAIN).y;
-		float fs = bound(9, hy * 0.62, 20);
-		vector fsz = eX * fs + eY * fs;
-		float w = stringwidth(target, false, fsz);
-		vector at = c - eY * (hy * 1.75);
-		drawfill(at - eX * (w * 0.5 + fs * 0.6) - eY * (fs * 0.75), eX * (w + fs * 1.2) + eY * (fs * 1.5), TOUCH_C_SURFACE, alpha * 0.6, DRAWFLAG_NORMAL);
-		drawstring(at - eX * (w * 0.5) - eY * (fs * 0.5), target, fsz, '1 1 1', alpha, DRAWFLAG_NORMAL);
 	}
 	return true;
 }
@@ -293,7 +305,7 @@ string Touch_Spec_ObserverHint(string hint, int status, int choice)
 		if (status == -1 && choice == 0)
 			return Touch_Spec_BarShown(Touch_Spec_State()) ? "^1Tap ^3>^1 to spectate" : "";
 		if (status != -1 && choice == 1)
-			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3FREE^1 to observe" : "";
+			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3the name^1 to observe" : "";
 	}
 	if ((cvar("vid_touchscreen") || cvar("vid_touchscreen_detected")) && !cvar("vid_keyboard_detected"))
 	{
@@ -302,7 +314,7 @@ string Touch_Spec_ObserverHint(string hint, int status, int choice)
 		if (status == -1)
 			return Touch_Spec_BarShown(Touch_Spec_State()) ? "^1Tap ^3>^1 to spectate" : "";
 		if (choice == 1)
-			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3FREE^1 to observe" : "";
+			return Touch_Spec_State() == TOUCH_SPEC_FOLLOWING ? "^1Tap ^3the name^1 to observe" : "";
 	}
 	return hint;
 }
@@ -347,14 +359,14 @@ string Touch_Spec_CommandLabel(string command)
 	if (Touch_Spec_BarShown(st))
 	{
 		if (command == "+fire" || command == "+attack")
-			return Touch_Spec_Flying(st) ? "FREE" : ">";
+			return Touch_Spec_Flying(st) ? "Free" : ">";
 		// flying, next / previous weapon change the speed: no button for that
 		if (command == "weapnext")
 			return Touch_Spec_Flying(st) ? "" : ">";
 		if (command == "weapprev")
 			return Touch_Spec_Flying(st) ? "" : "<";
 		if (command == "+fire2")
-			return st == TOUCH_SPEC_FOLLOWING ? "FREE" : "";
+			return st == TOUCH_SPEC_FOLLOWING ? "the name" : "";
 	}
 	return "";
 }

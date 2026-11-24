@@ -189,8 +189,8 @@ void Touch_DefineCvars(void)
 	Touch_RegisterCvar("touch_chat_visible", "1");
 	// The spectator bar (previous | follow or free | next), bottom right under
 	// the right thumb; 46 dp tall at least (touch_spectate.qc, touch_hud.c).
-	Touch_RegisterCvar("touch_specbar_x", "0.815");
-	Touch_RegisterCvar("touch_specbar_y", "0.885");
+	Touch_RegisterCvar("touch_specbar_x", "0.460");
+	Touch_RegisterCvar("touch_specbar_y", "0.930");
 	Touch_RegisterCvar("touch_specbar_size", "0.085");
 	// The bar itself (previous | follow or free | next): off by default, so
 	// the FOLLOW control is not in the way until the player turns it on in
