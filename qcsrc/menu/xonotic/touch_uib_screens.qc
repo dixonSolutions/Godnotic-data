@@ -360,7 +360,6 @@ void UIB_BuildHome()
 			// the same details as one line of equal cells (title on top, picture below); `subtitle` is for renderers without `tags`
 			uib_j("tags", sprintf("[%s,%s,%s]", uib_q(UIB_MapTitle(map)), uib_q(UIB_ModeName(mode)), uib_q(sprintf(((bots == 1) ? _("%d bot") : _("%d bots")), bots))));
 			uib_s("icon", "singleplayer");
-			uib_s("image", strcat("pk3:maps/", map));
 			uib_s("aspect", "16:9");
 			uib_b("featured", 1);
 			uib_j("primary", UIB_A("sp", _("Open"), "chevron"));
@@ -391,11 +390,11 @@ void UIB_BuildHome()
 			string preview = "";
 			string previewsource = cvar_string("_uib_debug_servers");
 			if (previewsource == "") previewsource = "servers.all";
-			// sixteen rows asked, up to twelve lines sent (the renderer shows as many as the card's height holds): a server listed under two addresses (IPv4 and IPv6) is one line
+			// sixteen rows asked, up to eight lines sent (the renderer shows as many as the card's height holds): a server listed under two addresses (IPv4 and IPv6) is one line
 			int previewcount = uib_window(previewsource, 0, 16, "players", true, "");
 			int previewlines = 0;
 			string previewrows = "";
-			for (int pi = 0; pi < previewcount && previewlines < 12; ++pi)
+			for (int pi = 0; pi < previewcount && previewlines < 8; ++pi)
 			{
 				string pm = uib_wcell(pi, "map");
 				string pn = uib_wcell(pi, "name");
@@ -876,13 +875,6 @@ void UIB_AddRecent(string map, string mode)
 
 void UIB_StartGame(string map, string mode)
 {
-	if (TouchData_MapDownloading(map))
-	{
-		// still coming in (docs/DATA_FETCH.md): fetch it first, never start another map instead
-		TouchData_Want(map);
-		uib_toast(sprintf(_("%s is still downloading. It is next; start it when it is here."), map), "info", "download", 5);
-		return;
-	}
 	bool lan = UIB_CreateLan();
 	Gametype gt = MapInfo_Type_FromString(mode, false, false);
 	if (!gt)
@@ -897,7 +889,7 @@ void UIB_StartGame(string map, string mode)
 		UIB_MapInfoEnumerate();
 		UIB_FilterMaps(gt);
 	}
-	if (MapInfo_count <= 0)
+	if (MapInfo_count <= 0 && !(m != "" && TouchData_MapDownloading(m)))
 	{
 		uib_toast(sprintf(_("No map you have can start %s"), UIB_ModeName(mode)), "error", "error", 4);
 		UIB_RebuildAll();
@@ -905,7 +897,7 @@ void UIB_StartGame(string map, string mode)
 	}
 	if (m == "")   // Quick play: any map of the mode
 		m = MapInfo_BSPName_ByID(floor(random() * MapInfo_count));
-	else if (!UIB_FilteredHas(m))
+	else if (!UIB_FilteredHas(m) && !TouchData_MapDownloading(m))
 	{
 		// never a different map than the one chosen: say why and start nothing
 		_MapInfo_FilterGametype(MAPINFO_TYPE_ALL, 0, 0, 0, 0);
@@ -1098,8 +1090,7 @@ void UIB_BuildServers()
 			uib_s("subtitle", sprintf("%s · %s · %s · %s", map, (mode != "" ? UIB_ModeName(mode) : _("Unknown game type")), playcount, pingtext));
 			if (map != "")
 			{
-				uib_s("image", strcat("pk3:maps/", map));
-				uib_s("aspect", "16:9");
+					uib_s("aspect", "16:9");
 			}
 			if (playerDetails != "") uib_s("body", playerDetails);
 			uib_j("primary", UIB_AS("server.join", _("Join"), "play", "primary"));
@@ -1763,6 +1754,7 @@ void UIB_BuildLoading()
 	string state = argv(0);
 	float progress = stof(argv(2)), speed = stof(argv(3));
 	string file = argv(4);
+	string map = argv(6), picture = argv(7);
 	string stage;
 	switch (state)
 	{
@@ -1780,6 +1772,14 @@ void UIB_BuildLoading()
 	uib_s("kind", "loading");
 	uib_s("presentation", "fullscreen");
 	uib_s("background", "asset:loading");
+	if (map != "")
+	{
+		UIB_Open("map", "image");
+			uib_s("ref", strcat("pk3:", picture != "" ? picture : strcat("maps/", map)));
+			uib_s("fit", "contain");
+			uib_s("alt", map);
+		UIB_Close();
+	}
 	UIB_Open("status", "status");
 		uib_s("icon", state == "downloading" ? "download" : "server");
 		string who = UIB_ServerLabel(UIB_JoinAddress());

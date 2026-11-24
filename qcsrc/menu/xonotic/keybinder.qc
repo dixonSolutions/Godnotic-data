@@ -66,6 +66,7 @@ void KeyBinds_BuildList()
 	KEYBIND_DEF("+jump"                                 , _("jump / swim"));
 	KEYBIND_DEF("+crouch"                               , _("crouch / sink"));
 	KEYBIND_DEF("+hook"                                 , _("offhand hook"));
+	KEYBIND_DEF("+touch_nade"                           , _("offhand grenade")); // Touch: bind the grenade independently
 	KEYBIND_DEF("+jetpack"                              , _("jetpack"));
 	KEYBIND_EMPTY_LINE();
 

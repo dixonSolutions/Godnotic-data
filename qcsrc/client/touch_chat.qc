@@ -45,6 +45,9 @@ bool touch_chat_open;
 bool touch_chat_team;
 string touch_chat_text;
 int touch_chat_caret;          // insertion point: a character index into the text
+string touch_chat_saved;
+int touch_chat_saved_caret;
+bool touch_chat_saved_team, touch_chat_has_saved;
 bool touch_chat_field_hot;     // a finger is placing the caret
 
 string touch_chat_line[TOUCH_CHAT_HISTORY];
@@ -60,7 +63,8 @@ float touch_chat_hot_time;
 
 const int TOUCH_CHAT_BTN_NONE  = -1;
 const int TOUCH_CHAT_BTN_CLOSE = 0;
-const int TOUCH_CHAT_BTN_COUNT = 1;
+const int TOUCH_CHAT_BTN_LOG   = 1;
+const int TOUCH_CHAT_BTN_COUNT = 2;
 
 void Touch_Chat_Reset(void)
 {
@@ -81,6 +85,8 @@ void Touch_Chat_Reset(void)
 	touch_chat_pick_hot = -1;
 	strcpy(touch_chat_pick_for, "");
 	strcpy(touch_chat_text, "");
+	strcpy(touch_chat_saved, "");
+	touch_chat_has_saved = false;
 	touch_chat_caret = 0;
 }
 
@@ -539,12 +545,14 @@ void Touch_Chat_Open(bool team)
 	cvar_set("hud_panel_chat", "0");
 	cvar_set("_touch_chat_sheet", "1"); // the engine's console button keeps off the sheet's header
 	touch_chat_open = true;
-	touch_chat_team = team;
+	touch_chat_team = touch_chat_has_saved ? touch_chat_saved_team : team;
 	touch_chat_hot_row = -1;
 	touch_chat_hot_cell = -1;
 	touch_chat_hot_button = TOUCH_CHAT_BTN_NONE;
-	strcpy(touch_chat_text, "");
-	touch_chat_caret = 0;
+	strcpy(touch_chat_text, touch_chat_has_saved ? touch_chat_saved : "");
+	touch_chat_caret = touch_chat_has_saved ? touch_chat_saved_caret : 0;
+	touch_chat_has_saved = false;
+	strcpy(touch_chat_saved, "");
 }
 
 void Touch_Chat_Close(void)
@@ -935,6 +943,16 @@ void Touch_Chat_PointerUp(void)
 		Touch_Chat_Close();
 		return;
 	}
+	if (touch_chat_hot_button == TOUCH_CHAT_BTN_LOG)
+	{
+		strcpy(touch_chat_saved, touch_chat_text);
+		touch_chat_saved_caret = touch_chat_caret;
+		touch_chat_saved_team = touch_chat_team;
+		touch_chat_has_saved = true;
+		Touch_Chat_Close();
+		localcmd("\ntouch_chatlog_open chat\n");
+		return;
+	}
 	if (Touch_Kb_PopupOpen())
 	{
 		touch_chat_hot_row = -1;
@@ -1118,6 +1136,9 @@ void Touch_Chat_Draw(void)
 	Touch_Widget_Key(Touch_Chat_ButtonCenter(TOUCH_CHAT_BTN_CLOSE), bhalf, "CLOSE",
 		touch_chat_hot_button == TOUCH_CHAT_BTN_CLOSE, false, false, alpha,
 		TOUCH_C_DANGER);
+	Touch_Widget_Key(Touch_Chat_ButtonCenter(TOUCH_CHAT_BTN_LOG), bhalf, "LOG",
+		touch_chat_hot_button == TOUCH_CHAT_BTN_LOG, false, false, alpha,
+		TOUCH_C_ACCENT);
 	Touch_Chat_DrawHistory(alpha);
 	Touch_Chat_PickRefresh();
 	// Who is typing, from the engine (the server's chat bubbles), over the field.

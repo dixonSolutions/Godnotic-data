@@ -21,7 +21,7 @@ bool TouchData_MapDownloading(string map)
 void TouchData_Want(string map)
 {
 	if (TouchData_MapDownloading(map))
-		localcmd(sprintf("\ntouch_data_want \"%s\"\n", map));
+		localcmd(sprintf("\ntouch_data_request \"%s\"\n", map));
 }
 
 float TouchData_MapProgress(string map)
